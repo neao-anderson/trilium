@@ -53,15 +53,21 @@ class NoteShort {
     }
 
     update(row) {
-        /** @param {string} */
+        /** @type {string} */
         this.noteId = row.noteId;
-        /** @param {string} */
+        /** @type {string} */
         this.title = row.title;
-        /** @param {boolean} */
+        /** @type {boolean} */
         this.isProtected = !!row.isProtected;
-        /** @param {string} one of 'text', 'code', 'file' or 'render' */
+        /**
+         * one of 'text', 'code', 'file' or 'render'
+         * @type {string}
+         */
         this.type = row.type;
-        /** @param {string} content-type, e.g. "application/json" */
+        /**
+         * content-type, e.g. "application/json"
+         * @type {string}
+         */
         this.mime = row.mime;
     }
 
@@ -124,16 +130,36 @@ class NoteShort {
         }
     }
 
-    /** @returns {string[]} */
-    getBranchIds() {
+    /**
+     * @returns {string[]}
+     */
+    getParentBranchIds() {
         return Object.values(this.parentToBranch);
     }
 
-    /** @returns {Branch[]} */
-    getBranches() {
+    /**
+     * @returns {string[]}
+     * @deprecated use getParentBranchIds() instead
+     */
+    getBranchIds() {
+        return this.getParentBranchIds();
+    }
+
+    /**
+     * @returns {Branch[]}
+     */
+    getParentBranches() {
         const branchIds = Object.values(this.parentToBranch);
 
         return this.froca.getBranches(branchIds);
+    }
+
+    /**
+     * @returns {Branch[]}
+     * @deprecated use getParentBranches() instead
+     */
+    getBranches() {
+        return this.getParentBranches();
     }
 
     /** @returns {boolean} */
@@ -371,6 +397,9 @@ class NoteShort {
         }
         else if (this.noteId === 'root') {
             return "bx bx-chevrons-right";
+        }
+        if (this.noteId === 'share') {
+            return "bx bx-share-alt";
         }
         else if (this.type === 'text') {
             if (this.isFolder()) {
@@ -614,8 +643,8 @@ class NoteShort {
             });
     }
 
-    hasAncestor(ancestorNote, visitedNoteIds = null) {
-        if (this.noteId === ancestorNote.noteId) {
+    hasAncestor(ancestorNoteId, visitedNoteIds = null) {
+        if (this.noteId === ancestorNoteId) {
             return true;
         }
 
@@ -629,13 +658,13 @@ class NoteShort {
         visitedNoteIds.add(this.noteId);
 
         for (const templateNote of this.getTemplateNotes()) {
-            if (templateNote.hasAncestor(ancestorNote, visitedNoteIds)) {
+            if (templateNote.hasAncestor(ancestorNoteId, visitedNoteIds)) {
                 return true;
             }
         }
 
         for (const parentNote of this.getParentNotes()) {
-            if (parentNote.hasAncestor(ancestorNote, visitedNoteIds)) {
+            if (parentNote.hasAncestor(ancestorNoteId, visitedNoteIds)) {
                 return true;
             }
         }
@@ -644,12 +673,9 @@ class NoteShort {
     }
 
     /**
-     * Clear note's attributes cache to force fresh reload for next attribute request.
-     * Cache is note instance scoped.
+     * @deprecated NOOP
      */
-    invalidateAttributeCache() {
-        this.__attributeCache = null;
-    }
+    invalidateAttributeCache() {}
 
     /**
      * Get relations which target this note
@@ -681,7 +707,7 @@ class NoteShort {
         return await this.froca.getNoteComplement(this.noteId);
     }
 
-    get toString() {
+    toString() {
         return `Note(noteId=${this.noteId}, title=${this.title})`;
     }
 
@@ -754,6 +780,26 @@ class NoteShort {
         else {
             throw new Error(`Unrecognized env type ${env} for note ${this.noteId}`);
         }
+    }
+
+    isShared() {
+        for (const parentNoteId of this.parents) {
+            if (parentNoteId === 'root' || parentNoteId === 'none') {
+                continue;
+            }
+
+            const parentNote = froca.notes[parentNoteId];
+
+            if (!parentNote || parentNote.type === 'search') {
+                continue;
+            }
+
+            if (parentNote.noteId === 'share' || parentNote.isShared()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 

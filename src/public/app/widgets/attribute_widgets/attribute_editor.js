@@ -193,7 +193,8 @@ export default class AttributeEditorWidget extends NoteContextAwareWidget {
 
         this.$editor.on('keydown', async e => {
             if (e.which === 13) {
-                await this.save();
+                // allow autocomplete to fill the result textarea
+                setTimeout(() => this.save(), 100);
             }
 
             this.attributeDetailWidget.hide();
@@ -494,6 +495,16 @@ export default class AttributeEditorWidget extends NoteContextAwareWidget {
 
     async updateAttributeList(attributes) {
         await this.renderOwnedAttributes(attributes, false);
+    }
+
+    focus() {
+        this.$editor.trigger('focus');
+
+        this.textEditor.model.change( writer => {
+            const positionAt = writer.createPositionAt(this.textEditor.model.document.getRoot(), 'end');
+
+            writer.setSelection(positionAt);
+        } );
     }
 
     entitiesReloadedEvent({loadResults}) {

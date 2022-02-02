@@ -75,13 +75,19 @@ async function resolveNotePathToSegments(notePath, hoistedNoteId = 'root', logEr
                 if (logErrors) {
                     const parent = froca.getNoteFromCache(parentNoteId);
 
-                    console.debug(utils.now(), `Did not find parent ${parentNoteId} (${parent ? parent.title : 'n/a'}) for child ${childNoteId} (${child.title}), available parents: ${parents.map(p => `${p.noteId} (${p.title})`)}. You can ignore this message as it is mostly harmless.`);
+                    console.debug(utils.now(), `Did not find parent ${parentNoteId} (${parent ? parent.title : 'n/a'}) 
+                        for child ${childNoteId} (${child.title}), available parents: ${parents.map(p => `${p.noteId} (${p.title})`)}. 
+                        You can ignore this message as it is mostly harmless.`);
                 }
 
                 const someNotePath = getSomeNotePath(child, hoistedNoteId);
 
                 if (someNotePath) { // in case it's root the path may be empty
                     const pathToRoot = someNotePath.split("/").reverse().slice(1);
+
+                    if (!pathToRoot.includes("root")) {
+                        pathToRoot.push('root');
+                    }
 
                     for (const noteId of pathToRoot) {
                         effectivePathSegments.push(noteId);
@@ -105,6 +111,10 @@ async function resolveNotePathToSegments(notePath, hoistedNoteId = 'root', logEr
         const note = await froca.getNote(getNoteIdFromNotePath(notePath));
 
         const someNotePathSegments = getSomeNotePathSegments(note, hoistedNoteId);
+
+        if (!someNotePathSegments) {
+            throw new Error(`Did not find any path segments for ${note.toString()}, hoisted note ${hoistedNoteId}`);
+        }
 
         // if there isn't actually any note path with hoisted note then return the original resolved note path
         return someNotePathSegments.includes(hoistedNoteId) ? someNotePathSegments : effectivePathSegments;
@@ -134,7 +144,7 @@ ws.subscribeToMessages(message => {
        appContext.tabManager.activateOrOpenNote(message.noteId);
 
        if (utils.isElectron()) {
-           const currentWindow = utils.dynamicRequire("electron").remote.getCurrentWindow();
+           const currentWindow = utils.dynamicRequire('@electron/remote').getCurrentWindow();
 
            currentWindow.show();
        }

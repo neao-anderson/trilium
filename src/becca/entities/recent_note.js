@@ -1,7 +1,7 @@
 "use strict";
 
-const dateUtils = require('../../services/date_utils.js');
-const AbstractEntity = require("./abstract_entity.js");
+const dateUtils = require('../../services/date_utils');
+const AbstractEntity = require("./abstract_entity");
 
 /**
  * RecentNote represents recently visited note.
@@ -13,8 +13,11 @@ class RecentNote extends AbstractEntity {
     constructor(row) {
         super();
 
+        /** @type {string} */
         this.noteId = row.noteId;
+        /** @type {string} */
         this.notePath = row.notePath;
+        /** @type {string} */
         this.utcDateCreated = row.utcDateCreated || dateUtils.utcNowDateTime();
     }
 

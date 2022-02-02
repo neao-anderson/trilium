@@ -17,7 +17,7 @@ const TPL = `<div class="note-map-widget" style="position: relative;">
             top: 10px; 
             right: 10px; 
             background-color: var(--accented-background-color);
-            z-index: 1000;
+            z-index: 10; /* should be below dropdown (note actions) */
         }
         
         .map-type-switcher .bx {
@@ -332,16 +332,64 @@ export default class NoteMapWidget extends NoteContextAwareWidget {
 
         if (this.widgetMode === 'ribbon') {
             setTimeout(() => {
-                const node = this.nodes.find(node => node.id === this.noteId);
+                const subGraphNoteIds = this.getSubGraphConnectedToCurrentNote(data);
 
-                this.graph.centerAt(node.x, node.y, 500);
+                this.graph.zoomToFit(400, 50, node => subGraphNoteIds.has(node.id));
+
+                if (subGraphNoteIds.size < 30) {
+                    this.graph.d3VelocityDecay(0.4);
+                }
             }, 1000);
         }
         else if (this.widgetMode === 'type') {
             if (data.nodes.length > 1) {
-                setTimeout(() => this.graph.zoomToFit(400, 10), 1000);
+                setTimeout(() => {
+                    this.graph.zoomToFit(400, 10);
+
+                    if (data.nodes.length < 30) {
+                        this.graph.d3VelocityDecay(0.4);
+                    }
+                }, 1000);
             }
         }
+    }
+
+    getSubGraphConnectedToCurrentNote(data) {
+        function getGroupedLinks(links, type) {
+            const map = {};
+
+            for (const link of links) {
+                const key = link[type].id;
+                map[key] = map[key] || [];
+                map[key].push(link);
+            }
+
+            return map;
+        }
+
+        const linksBySource = getGroupedLinks(data.links, "source");
+        const linksByTarget = getGroupedLinks(data.links, "target");
+
+        const subGraphNoteIds = new Set();
+
+        function traverseGraph(noteId) {
+            if (subGraphNoteIds.has(noteId)) {
+                return;
+            }
+
+            subGraphNoteIds.add(noteId);
+
+            for (const link of linksBySource[noteId] || []) {
+                traverseGraph(link.target.id);
+            }
+
+            for (const link of linksByTarget[noteId] || []) {
+                traverseGraph(link.source.id);
+            }
+        }
+
+        traverseGraph(this.noteId);
+        return subGraphNoteIds;
     }
 
     cleanup() {

@@ -22,7 +22,7 @@ class TaskContext {
         this.increaseProgressCount();
     }
 
-    /** @return {TaskContext} */
+    /** @returns {TaskContext} */
     static getInstance(taskId, taskType, data) {
         if (!taskContexts[taskId]) {
             taskContexts[taskId] = new TaskContext(taskId, taskType, data);
@@ -34,7 +34,7 @@ class TaskContext {
     increaseProgressCount() {
         this.progressCount++;
 
-        if (Date.now() - this.lastSentCountTs >= 300 && this.taskId !== 'initial-demo-import') {
+        if (Date.now() - this.lastSentCountTs >= 300 && this.taskId !== 'no-progress-reporting') {
             this.lastSentCountTs = Date.now();
 
             ws.sendMessageToAllClients({

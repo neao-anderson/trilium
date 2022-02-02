@@ -3,7 +3,6 @@
 const noteService = require('./notes');
 const attributeService = require('./attributes');
 const dateUtils = require('./date_utils');
-const becca = require('../becca/becca');
 const sql = require('./sql');
 const protectedSessionService = require('./protected_session');
 
@@ -25,16 +24,7 @@ function createNote(parentNote, noteTitle) {
     }).note;
 }
 
-function getNoteStartingWith(parentNoteId, startsWith) {
-    const noteId = sql.getValue(`SELECT notes.noteId FROM notes JOIN branches USING(noteId) 
-                                    WHERE parentNoteId = ? AND title LIKE '${startsWith}%'
-                                    AND notes.isDeleted = 0 AND isProtected = 0 
-                                    AND branches.isDeleted = 0`, [parentNoteId]);
-
-    return becca.getNote(noteId);
-}
-
-/** @return {Note} */
+/** @returns {Note} */
 function getRootCalendarNote() {
     let rootNote = attributeService.getNoteWithLabel(CALENDAR_ROOT_LABEL);
 
@@ -57,16 +47,15 @@ function getRootCalendarNote() {
     return rootNote;
 }
 
-/** @return {Note} */
-function getYearNote(dateStr, rootNote) {
+/** @returns {Note} */
+function getYearNote(dateStr, rootNote = null) {
     if (!rootNote) {
         rootNote = getRootCalendarNote();
     }
 
-    const yearStr = dateStr.substr(0, 4);
+    const yearStr = dateStr.trim().substr(0, 4);
 
-    let yearNote = attributeService.getNoteWithLabel(YEAR_LABEL, yearStr)
-        || getNoteStartingWith(rootNote.noteId, yearStr);
+    let yearNote = attributeService.getNoteWithLabel(YEAR_LABEL, yearStr);
 
     if (yearNote) {
         return yearNote;
@@ -97,8 +86,8 @@ function getMonthNoteTitle(rootNote, monthNumber, dateObj) {
         .replace(/{month}/g, monthName);
 }
 
-/** @return {Note} */
-function getMonthNote(dateStr, rootNote) {
+/** @returns {Note} */
+function getMonthNote(dateStr, rootNote = null) {
     if (!rootNote) {
         rootNote = getRootCalendarNote();
     }
@@ -112,17 +101,11 @@ function getMonthNote(dateStr, rootNote) {
         return monthNote;
     }
 
-    const yearNote = getYearNote(dateStr, rootNote);
-
-    monthNote = getNoteStartingWith(yearNote.noteId, monthNumber);
-
-    if (monthNote) {
-        return monthNote;
-    }
-
     const dateObj = dateUtils.parseLocalDate(dateStr);
 
     const noteTitle = getMonthNoteTitle(rootNote, monthNumber, dateObj);
+
+    const yearNote = getYearNote(dateStr, rootNote);
 
     sql.transactional(() => {
         monthNote = createNote(yearNote, noteTitle);
@@ -140,20 +123,22 @@ function getMonthNote(dateStr, rootNote) {
     return monthNote;
 }
 
-function getDateNoteTitle(rootNote, dayNumber, dateObj) {
+function getDayNoteTitle(rootNote, dayNumber, dateObj) {
     const pattern = rootNote.getOwnedLabelValue("datePattern") || "{dayInMonthPadded} - {weekDay}";
     const weekDay = DAYS[dateObj.getDay()];
 
     return pattern
         .replace(/{dayInMonthPadded}/g, dayNumber)
-        .replace(/{isoDate}/g, dateUtils.localNowDate())
+        .replace(/{isoDate}/g, dateUtils.utcDateStr(dateObj))
         .replace(/{weekDay}/g, weekDay)
         .replace(/{weekDay3}/g, weekDay.substr(0, 3))
         .replace(/{weekDay2}/g, weekDay.substr(0, 2));
 }
 
-/** @return {Note} */
-function getDateNote(dateStr) {
+/** @returns {Note} */
+function getDayNote(dateStr) {
+    dateStr = dateStr.trim().substr(0, 10);
+
     let dateNote = attributeService.getNoteWithLabel(DATE_LABEL, dateStr);
 
     if (dateNote) {
@@ -164,15 +149,9 @@ function getDateNote(dateStr) {
     const monthNote = getMonthNote(dateStr, rootNote);
     const dayNumber = dateStr.substr(8, 2);
 
-    dateNote = getNoteStartingWith(monthNote.noteId, dayNumber);
-
-    if (dateNote) {
-        return dateNote;
-    }
-
     const dateObj = dateUtils.parseLocalDate(dateStr);
 
-    const noteTitle = getDateNoteTitle(rootNote, dayNumber, dateObj);
+    const noteTitle = getDayNoteTitle(rootNote, dayNumber, dateObj);
 
     sql.transactional(() => {
         dateNote = createNote(monthNote, noteTitle);
@@ -190,7 +169,7 @@ function getDateNote(dateStr) {
 }
 
 function getTodayNote() {
-    return getDateNote(dateUtils.localNowDate());
+    return getDayNote(dateUtils.localNowDate());
 }
 
 function getStartOfTheWeek(date, startOfTheWeek) {
@@ -215,9 +194,9 @@ function getWeekNote(dateStr, options = {}) {
 
     const dateObj = getStartOfTheWeek(dateUtils.parseLocalDate(dateStr), startOfTheWeek);
 
-    dateStr = dateUtils.utcDateStr(dateObj);
+    dateStr = dateUtils.utcDateTimeStr(dateObj);
 
-    return getDateNote(dateStr);
+    return getDayNote(dateStr);
 }
 
 module.exports = {
@@ -225,6 +204,6 @@ module.exports = {
     getYearNote,
     getMonthNote,
     getWeekNote,
-    getDateNote,
+    getDayNote,
     getTodayNote
 };

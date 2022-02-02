@@ -15,7 +15,7 @@ const htmlSanitizer = require('../../services/html_sanitizer');
 const {formatAttrForSearch} = require("../../services/attribute_formatter");
 
 function findClippingNote(todayNote, pageUrl) {
-    const notes = todayNote.searchNoteInSubtree(
+    const notes = todayNote.searchNotesInSubtree(
         formatAttrForSearch({
             type: 'label',
             name: "pageUrl",
@@ -36,7 +36,7 @@ function getClipperInboxNote() {
     let clipperInbox = attributeService.getNoteWithLabel('clipperInbox');
 
     if (!clipperInbox) {
-        clipperInbox = dateNoteService.getDateNote(dateUtils.localNowDate());
+        clipperInbox = dateNoteService.getDayNote(dateUtils.localNowDate());
     }
 
     return clipperInbox;
@@ -59,6 +59,7 @@ function addClipping(req) {
 
         clippingNote.setLabel('clipType', 'clippings');
         clippingNote.setLabel('pageUrl', pageUrl);
+        clippingNote.setLabel('iconClass', 'bx bx-globe');
     }
 
     const rewrittenContent = processContent(images, clippingNote, content);
@@ -92,6 +93,7 @@ function createNote(req) {
 
     if (pageUrl) {
         note.setLabel('pageUrl', pageUrl);
+        note.setLabel('iconClass', 'bx bx-globe');
     }
 
     const rewrittenContent = processContent(images, note, content);

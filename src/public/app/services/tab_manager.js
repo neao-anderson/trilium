@@ -129,17 +129,12 @@ export default class TabManager extends Component {
             window.history.pushState(null, "", url);
         }
 
-        document.title = "Trilium Notes";
-
-        if (activeNoteContext.note) {
-            // it helps navigating in history if note title is included in the title
-            document.title += " - " + activeNoteContext.note.title;
-        }
+        this.updateDocumentTitle(activeNoteContext);
 
         this.triggerEvent('activeNoteChanged'); // trigger this even in on popstate event
     }
 
-    /** @return {NoteContext[]} */
+    /** @returns {NoteContext[]} */
     getNoteContexts() {
         return this.noteContexts;
     }
@@ -175,20 +170,20 @@ export default class TabManager extends Component {
         return activeContext ? activeContext.notePath : null;
     }
 
-    /** @return {NoteShort} */
+    /** @returns {NoteShort} */
     getActiveContextNote() {
         const activeContext = this.getActiveContext();
         return activeContext ? activeContext.note : null;
     }
 
-    /** @return {string|null} */
+    /** @returns {string|null} */
     getActiveContextNoteId() {
         const activeNote = this.getActiveContextNote();
 
         return activeNote ? activeNote.noteId : null;
     }
 
-    /** @return {string|null} */
+    /** @returns {string|null} */
     getActiveContextNoteType() {
         const activeNote = this.getActiveContextNote();
 
@@ -211,7 +206,7 @@ export default class TabManager extends Component {
         await noteContext.setEmpty();
     }
 
-    async openEmptyTab(ntxId, hoistedNoteId = 'root', mainNtxId = null) {
+    async openEmptyTab(ntxId = null, hoistedNoteId = 'root', mainNtxId = null) {
         const noteContext = new NoteContext(ntxId, hoistedNoteId, mainNtxId);
 
         const existingNoteContext = this.children.find(nc => nc.ntxId === noteContext.ntxId);
@@ -237,7 +232,7 @@ export default class TabManager extends Component {
         if (noteContext) {
             const resolvedNotePath = await treeService.resolveNotePath(notePath, noteContext.hoistedNoteId);
 
-            if (resolvedNotePath.includes(noteContext.hoistedNoteId)) {
+            if (resolvedNotePath.includes(noteContext.hoistedNoteId) || resolvedNotePath.includes("hidden")) {
                 hoistedNoteId = noteContext.hoistedNoteId;
             }
         }
@@ -245,7 +240,7 @@ export default class TabManager extends Component {
         return this.openContextWithNote(notePath, activate, null, hoistedNoteId);
     }
 
-    async openContextWithNote(notePath, activate, ntxId, hoistedNoteId = 'root', mainNtxId = null) {
+    async openContextWithNote(notePath, activate, ntxId = null, hoistedNoteId = 'root', mainNtxId = null) {
         const noteContext = await this.openEmptyTab(ntxId, hoistedNoteId, mainNtxId);
 
         if (notePath) {
@@ -298,6 +293,17 @@ export default class TabManager extends Component {
 
     async removeNoteContext(ntxId) {
         const noteContextToRemove = this.getNoteContextById(ntxId);
+
+        if (noteContextToRemove.isMainContext()) {
+            // forbid removing last main note context
+            // this was previously allowed (was replaced with empty tab) but this proved to be prone to race conditions
+            const mainNoteContexts = this.getNoteContexts().filter(nc => nc.isMainContext());
+
+            if (mainNoteContexts.length === 1) {
+                mainNoteContexts[0].setEmpty();
+                return;
+            }
+        }
 
         // close dangling autocompletes after closing the tab
         $(".aa-input").autocomplete("close");
@@ -353,7 +359,7 @@ export default class TabManager extends Component {
         const order = {};
         let i = 0;
 
-        for (const ntxId in ntxIdsInOrder) {
+        for (const ntxId of ntxIdsInOrder) {
             order[ntxId] = i++;
         }
 
@@ -441,5 +447,23 @@ export default class TabManager extends Component {
 
     hoistedNoteChangedEvent() {
         this.tabsUpdate.scheduleUpdate();
+    }
+
+    updateDocumentTitle(activeNoteContext) {
+        const titleFragments = [
+            // it helps navigating in history if note title is included in the title
+            activeNoteContext.note?.title,
+            "Trilium Notes"
+        ].filter(Boolean);
+
+        document.title = titleFragments.join(" - ");
+    }
+
+    entitiesReloadedEvent({loadResults}) {
+        const activeContext = this.getActiveContext();
+
+        if (activeContext && loadResults.isNoteReloaded(activeContext.noteId)) {
+            this.updateDocumentTitle(activeContext);
+        }
     }
 }

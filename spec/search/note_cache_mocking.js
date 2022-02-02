@@ -1,10 +1,10 @@
-const Note = require('../../src/becca/entities/note.js');
-const Branch = require('../../src/becca/entities/branch.js');
-const Attribute = require('../../src/becca/entities/attribute.js');
-const becca = require('../../src/becca/becca.js');
+const Note = require('../../src/becca/entities/note');
+const Branch = require('../../src/becca/entities/branch');
+const Attribute = require('../../src/becca/entities/attribute');
+const becca = require('../../src/becca/becca');
 const randtoken = require('rand-token').generator({source: 'crypto'});
 
-/** @return {Note} */
+/** @returns {Note} */
 function findNoteByTitle(searchResults, title) {
     return searchResults
         .map(sr => becca.notes[sr.noteId])
@@ -42,7 +42,7 @@ class NoteBuilder {
     }
 
     child(childNoteBuilder, prefix = "") {
-        new Branch(becca, {
+        new Branch({
             branchId: id(),
             noteId: childNoteBuilder.note.noteId,
             parentNoteId: this.note.noteId,

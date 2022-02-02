@@ -2,46 +2,55 @@ import froca from "./froca.js";
 import server from "./server.js";
 import ws from "./ws.js";
 
-/** @return {NoteShort} */
+/** @returns {NoteShort} */
 async function getInboxNote() {
     const note = await server.get('special-notes/inbox/' + dayjs().format("YYYY-MM-DD"), "date-note");
 
     return await froca.getNote(note.noteId);
 }
 
-/** @return {NoteShort} */
+/** @returns {NoteShort} */
 async function getTodayNote() {
-    return await getDateNote(dayjs().format("YYYY-MM-DD"));
+    return await getDayNote(dayjs().format("YYYY-MM-DD"));
 }
 
-/** @return {NoteShort} */
-async function getDateNote(date) {
-    const note = await server.get('special-notes/date/' + date, "date-note");
+/** @returns {NoteShort} */
+async function getDayNote(date) {
+    const note = await server.get('special-notes/days/' + date, "date-note");
 
     await ws.waitForMaxKnownEntityChangeId();
 
     return await froca.getNote(note.noteId);
 }
 
-/** @return {NoteShort} */
+/** @returns {NoteShort} */
+async function getWeekNote(date) {
+    const note = await server.get('special-notes/weeks/' + date, "date-note");
+
+    await ws.waitForMaxKnownEntityChangeId();
+
+    return await froca.getNote(note.noteId);
+}
+
+/** @returns {NoteShort} */
 async function getMonthNote(month) {
-    const note = await server.get('special-notes/month/' + month, "date-note");
+    const note = await server.get('special-notes/months/' + month, "date-note");
 
     await ws.waitForMaxKnownEntityChangeId();
 
     return await froca.getNote(note.noteId);
 }
 
-/** @return {NoteShort} */
+/** @returns {NoteShort} */
 async function getYearNote(year) {
-    const note = await server.get('special-notes/year/' + year, "date-note");
+    const note = await server.get('special-notes/years/' + year, "date-note");
 
     await ws.waitForMaxKnownEntityChangeId();
 
     return await froca.getNote(note.noteId);
 }
 
-/** @return {NoteShort} */
+/** @returns {NoteShort} */
 async function createSqlConsole() {
     const note = await server.post('special-notes/sql-console');
 
@@ -50,7 +59,7 @@ async function createSqlConsole() {
     return await froca.getNote(note.noteId);
 }
 
-/** @return {NoteShort} */
+/** @returns {NoteShort} */
 async function createSearchNote(opts = {}) {
     const note = await server.post('special-notes/search-note', opts);
 
@@ -62,7 +71,8 @@ async function createSearchNote(opts = {}) {
 export default {
     getInboxNote,
     getTodayNote,
-    getDateNote,
+    getDayNote,
+    getWeekNote,
     getMonthNote,
     getYearNote,
     createSqlConsole,

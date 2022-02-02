@@ -5,11 +5,11 @@ const attributeService = require('../../services/attributes');
 const becca = require('../../becca/becca');
 const syncService = require('../../services/sync');
 
-function exec(req) {
+async function exec(req) {
     try {
         const {body} = req;
 
-        const result = scriptService.executeScript(
+        const result = await scriptService.executeScript(
             body.script,
             body.params,
             body.startNoteId,
@@ -38,7 +38,7 @@ function run(req) {
 }
 
 function getBundlesWithLabel(label, value) {
-    const notes = attributeService.getNotesWithLabel(label, value);
+    const notes = attributeService.getNotesWithLabelFast(label, value);
 
     const bundles = [];
 

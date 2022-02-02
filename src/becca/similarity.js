@@ -1,4 +1,4 @@
-const becca = require('./becca.js');
+const becca = require('./becca');
 const log = require('../services/log');
 const beccaService = require('./becca_service.js');
 const dateUtils = require('../services/date_utils');
@@ -178,10 +178,10 @@ function buildDateLimits(baseNote) {
     const dateCreatedTs = dateUtils.parseDateTime(baseNote.utcDateCreated).getTime();
 
     return {
-        minDate: dateUtils.utcDateStr(new Date(dateCreatedTs - 3600 * 1000)),
-        minExcludedDate: dateUtils.utcDateStr(new Date(dateCreatedTs - 5 * 1000)),
-        maxExcludedDate: dateUtils.utcDateStr(new Date(dateCreatedTs + 5 * 1000)),
-        maxDate: dateUtils.utcDateStr(new Date(dateCreatedTs + 3600 * 1000)),
+        minDate: dateUtils.utcDateTimeStr(new Date(dateCreatedTs - 3600 * 1000)),
+        minExcludedDate: dateUtils.utcDateTimeStr(new Date(dateCreatedTs - 5 * 1000)),
+        maxExcludedDate: dateUtils.utcDateTimeStr(new Date(dateCreatedTs + 5 * 1000)),
+        maxDate: dateUtils.utcDateTimeStr(new Date(dateCreatedTs + 3600 * 1000)),
     };
 }
 
