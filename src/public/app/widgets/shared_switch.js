@@ -3,11 +3,12 @@ import branchService from "../services/branches.js";
 import server from "../services/server.js";
 import utils from "../services/utils.js";
 import syncService from "../services/sync.js";
-import dialogService from "./dialog.js";
+import dialogService from "../services/dialog.js";
 
 export default class SharedSwitchWidget extends SwitchWidget {
     isEnabled() {
-        return super.isEnabled() && this.noteId !== 'root' && this.noteId !== 'share';
+        return super.isEnabled()
+            && !['root', '_share', '_hidden'].includes(this.noteId);
     }
 
     doRender() {
@@ -20,17 +21,17 @@ export default class SharedSwitchWidget extends SwitchWidget {
         this.$switchOffButton.attr("title", "Unshare the note");
 
         this.$helpButton.attr("data-help-page", "Sharing").show();
-        this.$helpButton.on('click', e => utils.openHelp(e));
+        this.$helpButton.on('click', e => utils.openHelp($(e.target)));
     }
 
     async switchOn() {
-        await branchService.cloneNoteToNote(this.noteId, 'share');
+        await branchService.cloneNoteToParentNote(this.noteId, '_share');
 
         syncService.syncNow(true);
     }
 
     async switchOff() {
-        const shareBranch = this.note.getParentBranches().find(b => b.parentNoteId === 'share');
+        const shareBranch = this.note.getParentBranches().find(b => b.parentNoteId === '_share');
 
         if (!shareBranch) {
             return;
@@ -50,8 +51,8 @@ export default class SharedSwitchWidget extends SwitchWidget {
     }
 
     async refreshWithNote(note) {
-        const isShared = note.hasAncestor('share');
-        const canBeUnshared = isShared && note.getParentBranches().find(b => b.parentNoteId === 'share');
+        const isShared = note.hasAncestor('_share');
+        const canBeUnshared = isShared && note.getParentBranches().find(b => b.parentNoteId === '_share');
         const switchDisabled = isShared && !canBeUnshared;
 
         this.$switchOn.toggle(!isShared);
@@ -68,7 +69,7 @@ export default class SharedSwitchWidget extends SwitchWidget {
     }
 
     entitiesReloadedEvent({loadResults}) {
-        if (loadResults.getBranches().find(b => b.noteId === this.noteId)) {
+        if (loadResults.getBranchRows().find(b => b.noteId === this.noteId)) {
             this.refresh();
         }
     }

@@ -4,7 +4,7 @@ const options = require('../../services/options');
 const utils = require('../../services/utils');
 const dateUtils = require('../../services/date_utils');
 const instanceId = require('../../services/member_id');
-const passwordEncryptionService = require('../../services/password_encryption');
+const passwordEncryptionService = require('../../services/encryption/password_encryption');
 const protectedSessionService = require('../../services/protected_session');
 const appInfo = require('../../services/app_info');
 const eventService = require('../../services/events');
@@ -26,7 +26,7 @@ function loginSync(req) {
 
     // login token is valid for 5 minutes
     if (Math.abs(timestamp.getTime() - now.getTime()) > 5 * 60 * 1000) {
-        return [401, { message: 'Auth request time is out of sync, please check that both client and server have correct time.' }];
+        return [401, { message: 'Auth request time is out of sync, please check that both client and server have correct time. The difference between clocks has to be smaller than 5 minutes.' }];
     }
 
     const syncVersion = req.body.syncVersion;

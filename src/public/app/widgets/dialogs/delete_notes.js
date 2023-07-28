@@ -20,15 +20,15 @@ const TPL = `
                     <label>
                         <input class="delete-all-clones" value="1" type="checkbox">
 
-                        delete also all clones
+                        delete also all clones (can be undone in recent changes)
                     </label>
                 </div>
 
                 <div class="checkbox">
-                    <label title="Normal (soft) deletion only marks the notes as deleted and they can be undeleted (in recent changes dialog) within a period of time. Checking this option will erase the notes immediatelly and it won't be possible to undelete the notes.">
+                    <label title="Normal (soft) deletion only marks the notes as deleted and they can be undeleted (in recent changes dialog) within a period of time. Checking this option will erase the notes immediately and it won't be possible to undelete the notes.">
                         <input class="erase-notes" value="1" type="checkbox">
 
-                        erase notes permanently (can't be undone). This will force application reload.
+                        erase notes permanently (can't be undone), including all clones. This will force application reload.
                     </label>
                 </div>
 
@@ -97,7 +97,7 @@ export default class DeleteNotesDialog extends BasicWidget {
 
             this.resolve({
                 proceed: true,
-                deleteAllClones: this.isDeleteAllClonesChecked(),
+                deleteAllClones: this.forceDeleteAllClones || this.isDeleteAllClonesChecked(),
                 eraseNotes: this.isEraseNotesChecked()
             });
         });
@@ -108,7 +108,7 @@ export default class DeleteNotesDialog extends BasicWidget {
     async renderDeletePreview() {
         const response = await server.post('delete-notes-preview', {
             branchIdsToDelete: this.branchIds,
-            deleteAllClones: this.isDeleteAllClonesChecked()
+            deleteAllClones: this.forceDeleteAllClones || this.isDeleteAllClonesChecked()
         });
 
         this.$deleteNotesList.empty();
@@ -120,7 +120,7 @@ export default class DeleteNotesDialog extends BasicWidget {
         for (const note of await froca.getNotes(response.noteIdsToBeDeleted)) {
             this.$deleteNotesList.append(
                 $("<li>").append(
-                    await linkService.createNoteLink(note.noteId, {showNotePath: true})
+                    await linkService.createLink(note.noteId, {showNotePath: true})
                 )
             );
         }
@@ -136,21 +136,25 @@ export default class DeleteNotesDialog extends BasicWidget {
             this.$brokenRelationsList.append(
                 $("<li>")
                     .append(`Note `)
-                    .append(await linkService.createNoteLink(attr.value))
+                    .append(await linkService.createLink(attr.value))
                     .append(` (to be deleted) is referenced by relation <code>${attr.name}</code> originating from `)
-                    .append(await linkService.createNoteLink(attr.noteId))
+                    .append(await linkService.createLink(attr.noteId))
             );
         }
     }
 
-    async showDeleteNotesDialogEvent({branchIdsToDelete, callback}) {
+    async showDeleteNotesDialogEvent({branchIdsToDelete, callback, forceDeleteAllClones}) {
         this.branchIds = branchIdsToDelete;
+        this.forceDeleteAllClones = forceDeleteAllClones;
 
         await this.renderDeletePreview();
 
         utils.openDialog(this.$widget);
 
-        this.$deleteAllClones.prop("checked", false);
+        this.$deleteAllClones
+            .prop("checked", !!forceDeleteAllClones)
+            .prop("disabled", !!forceDeleteAllClones);
+
         this.$eraseNotes.prop("checked", false);
 
         this.resolve = callback;

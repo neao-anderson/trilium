@@ -12,6 +12,7 @@ const syncOptions = require('../../services/sync_options');
 const dateUtils = require('../../services/date_utils');
 const utils = require('../../services/utils');
 const ws = require('../../services/ws');
+const becca = require("../../becca/becca");
 
 async function testSync() {
     try {
@@ -21,7 +22,7 @@ async function testSync() {
 
         await syncService.login();
 
-        // login was successful so we'll kick off sync now
+        // login was successful, so we'll kick off sync now
         // this is important in case when sync server has been just initialized
         syncService.sync();
 
@@ -61,7 +62,7 @@ function checkSync() {
 function syncNow() {
     log.info("Received request to trigger sync now.");
 
-    // when explicitly asked for set in progress status immediatelly for faster user feedback
+    // when explicitly asked for set in progress status immediately for faster user feedback
     ws.syncPullInProgress();
 
     return syncService.sync();
@@ -85,14 +86,15 @@ function forceFullSync() {
 
 function forceNoteSync(req) {
     const noteId = req.params.noteId;
+    const note = becca.getNote(noteId);
 
     const now = dateUtils.utcNowDateTime();
 
     sql.execute(`UPDATE notes SET utcDateModified = ? WHERE noteId = ?`, [now, noteId]);
     entityChangesService.moveEntityChangeToTop('notes', noteId);
 
-    sql.execute(`UPDATE note_contents SET utcDateModified = ? WHERE noteId = ?`, [now, noteId]);
-    entityChangesService.moveEntityChangeToTop('note_contents', noteId);
+    sql.execute(`UPDATE blobs SET utcDateModified = ? WHERE blobId = ?`, [now, note.blobId]);
+    entityChangesService.moveEntityChangeToTop('blobs', note.blobId);
 
     for (const branchId of sql.getColumn("SELECT branchId FROM branches WHERE noteId = ?", [noteId])) {
         sql.execute(`UPDATE branches SET utcDateModified = ? WHERE branchId = ?`, [now, branchId]);
@@ -106,15 +108,17 @@ function forceNoteSync(req) {
         entityChangesService.moveEntityChangeToTop('attributes', attributeId);
     }
 
-    for (const noteRevisionId of sql.getColumn("SELECT noteRevisionId FROM note_revisions WHERE noteId = ?", [noteId])) {
-        sql.execute(`UPDATE note_revisions SET utcDateModified = ? WHERE noteRevisionId = ?`, [now, noteRevisionId]);
-        entityChangesService.moveEntityChangeToTop('note_revisions', noteRevisionId);
-
-        sql.execute(`UPDATE note_revision_contents SET utcDateModified = ? WHERE noteRevisionId = ?`, [now, noteRevisionId]);
-        entityChangesService.moveEntityChangeToTop('note_revision_contents', noteRevisionId);
+    for (const revisionId of sql.getColumn("SELECT revisionId FROM revisions WHERE noteId = ?", [noteId])) {
+        sql.execute(`UPDATE revisions SET utcDateModified = ? WHERE revisionId = ?`, [now, revisionId]);
+        entityChangesService.moveEntityChangeToTop('revisions', revisionId);
     }
 
-    log.info("Forcing note sync for " + noteId);
+    for (const attachmentId of sql.getColumn("SELECT attachmentId FROM attachments WHERE noteId = ?", [noteId])) {
+        sql.execute(`UPDATE attachments SET utcDateModified = ? WHERE attachmentId = ?`, [now, attachmentId]);
+        entityChangesService.moveEntityChangeToTop('attachments', attachmentId);
+    }
+
+    log.info(`Forcing note sync for ${noteId}`);
 
     // not awaiting for the job to finish (will probably take a long time)
     syncService.sync();
@@ -215,7 +219,7 @@ function update(req) {
 
 setInterval(() => {
     for (const key in partialRequests) {
-        if (Date.now() - partialRequests[key].createdAt > 5 * 60 * 1000) {
+        if (Date.now() - partialRequests[key].createdAt > 20 * 60 * 1000) {
             log.info(`Cleaning up unfinished partial requests for ${key}`);
 
             delete partialRequests[key];
@@ -224,7 +228,7 @@ setInterval(() => {
 }, 60 * 1000);
 
 function syncFinished() {
-    // after first sync finishes, the application is ready to be used
+    // after the first sync finishes, the application is ready to be used
     // this is meaningless but at the same time harmless (idempotent) for further syncs
     sqlInit.setDbAsInitialized();
 }

@@ -5,10 +5,11 @@ const cls = require('./cls');
 const utils = require('./utils');
 const instanceId = require('./member_id');
 const becca = require("../becca/becca");
+const blobService = require("../services/blob");
 
 let maxEntityChangeId = 0;
 
-function addEntityChangeWithinstanceId(origEntityChange, instanceId) {
+function addEntityChangeWithInstanceId(origEntityChange, instanceId) {
     const ec = {...origEntityChange, instanceId};
 
     return addEntityChange(ec);
@@ -71,7 +72,7 @@ function addEntityChangesForSector(entityName, sector) {
         }
     });
 
-    log.info(`Added sector ${sector} of ${entityName} to sync queue in ${Date.now() - startTime}ms.`);
+    log.info(`Added sector ${sector} of '${entityName}' (${entityChanges.length} entities) to sync queue in ${Date.now() - startTime}ms.`);
 }
 
 function cleanupEntityChangesForMissingEntities(entityName, entityPrimaryKey) {
@@ -85,45 +86,62 @@ function cleanupEntityChangesForMissingEntities(entityName, entityPrimaryKey) {
 }
 
 function fillEntityChanges(entityName, entityPrimaryKey, condition = '') {
-    try {
-        cleanupEntityChangesForMissingEntities(entityName, entityPrimaryKey);
+    cleanupEntityChangesForMissingEntities(entityName, entityPrimaryKey);
 
-        sql.transactional(() => {
-            const entityIds = sql.getColumn(`SELECT ${entityPrimaryKey} FROM ${entityName}`
-                + (condition ? ` WHERE ${condition}` : ''));
+    sql.transactional(() => {
+        const entityIds = sql.getColumn(`SELECT ${entityPrimaryKey} FROM ${entityName} ${condition}`);
 
-            let createdCount = 0;
+        let createdCount = 0;
 
-            for (const entityId of entityIds) {
-                const existingRows = sql.getValue("SELECT COUNT(1) FROM entity_changes WHERE entityName = ? AND entityId = ?", [entityName, entityId]);
+        for (const entityId of entityIds) {
+            const existingRows = sql.getValue("SELECT COUNT(1) FROM entity_changes WHERE entityName = ? AND entityId = ?", [entityName, entityId]);
 
+            if (existingRows !== 0) {
                 // we don't want to replace existing entities (which would effectively cause full resync)
-                if (existingRows === 0) {
-                    createdCount++;
+                continue;
+            }
 
-                    const entity = becca.getEntity(entityName, entityId);
+            createdCount++;
 
-                    addEntityChange({
-                        entityName,
-                        entityId,
-                        hash: entity.generateHash(),
-                        isErased: false,
-                        utcDateChanged: entity.getUtcDateChanged(),
-                        isSynced: entityName !== 'options' || !!entity.isSynced
-                    });
+            let hash;
+            let utcDateChanged;
+            let isSynced;
+
+            if (entityName === 'blobs') {
+                const blob = sql.getRow("SELECT blobId, content, utcDateModified FROM blobs WHERE blobId = ?", [entityId]);
+                hash = blobService.calculateContentHash(blob);
+                utcDateChanged = blob.utcDateModified;
+                isSynced = true; // blobs are always synced
+            } else {
+                const entity = becca.getEntity(entityName, entityId);
+
+                if (entity) {
+                    hash = entity?.generateHash() || "|deleted";
+                    utcDateChanged = entity?.getUtcDateChanged() || dateUtils.utcNowDateTime();
+                    isSynced = entityName !== 'options' || !!entity?.isSynced;
+                } else {
+                    // entity might be null (not present in becca) when it's deleted
+                    // FIXME: hacky, not sure if it might cause some problems
+                    hash = "deleted";
+                    utcDateChanged = dateUtils.utcNowDateTime();
+                    isSynced = true; // deletable (the ones with isDeleted) entities are synced
                 }
             }
 
-            if (createdCount > 0) {
-                log.info(`Created ${createdCount} missing entity changes for ${entityName}.`);
-            }
-        });
-    }
-    catch (e) {
-        // this is to fix migration from 0.30 to 0.32, can be removed later
-        // see https://github.com/zadam/trilium/issues/557
-        log.error(`Filling entity changes failed for ${entityName} ${entityPrimaryKey} with error "${e.message}", continuing`);
-    }
+            addEntityChange({
+                entityName,
+                entityId,
+                hash: hash,
+                isErased: false,
+                utcDateChanged: utcDateChanged,
+                isSynced: isSynced
+            });
+        }
+
+        if (createdCount > 0) {
+            log.info(`Created ${createdCount} missing entity changes for entity '${entityName}'.`);
+        }
+    });
 }
 
 function fillAllEntityChanges() {
@@ -131,22 +149,27 @@ function fillAllEntityChanges() {
         sql.execute("DELETE FROM entity_changes WHERE isErased = 0");
 
         fillEntityChanges("notes", "noteId");
-        fillEntityChanges("note_contents", "noteId");
         fillEntityChanges("branches", "branchId");
-        fillEntityChanges("note_revisions", "noteRevisionId");
-        fillEntityChanges("note_revision_contents", "noteRevisionId");
+        fillEntityChanges("revisions", "revisionId");
+        fillEntityChanges("attachments", "attachmentId");
+        fillEntityChanges("blobs", "blobId");
         fillEntityChanges("attributes", "attributeId");
         fillEntityChanges("etapi_tokens", "etapiTokenId");
-        fillEntityChanges("options", "name", 'isSynced = 1');
+        fillEntityChanges("options", "name", 'WHERE isSynced = 1');
     });
+}
+
+function recalculateMaxEntityChangeId() {
+    maxEntityChangeId = sql.getValue("SELECT COALESCE(MAX(id), 0) FROM entity_changes");
 }
 
 module.exports = {
     addNoteReorderingEntityChange,
     moveEntityChangeToTop,
     addEntityChange,
-    addEntityChangeWithinstanceId,
+    addEntityChangeWithInstanceId,
     fillAllEntityChanges,
     addEntityChangesForSector,
-    getMaxEntityChangeId: () => maxEntityChangeId
+    getMaxEntityChangeId: () => maxEntityChangeId,
+    recalculateMaxEntityChangeId
 };

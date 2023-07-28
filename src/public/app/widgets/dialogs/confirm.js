@@ -3,7 +3,7 @@ import BasicWidget from "../basic_widget.js";
 const DELETE_NOTE_BUTTON_CLASS = "confirm-dialog-delete-note";
 
 const TPL = `
-<div class="confirm-dialog modal mx-auto" tabindex="-1" role="dialog">
+<div class="confirm-dialog modal mx-auto" tabindex="-1" role="dialog" style="z-index: 2000;">
     <div class="modal-dialog modal-dialog-scrollable" role="document">
         <div class="modal-content">
             <div class="modal-header">
@@ -34,7 +34,7 @@ export default class ConfirmDialog extends BasicWidget {
         super();
 
         this.resolve = null;
-        this.$originallyFocused = null; // element focused before the dialog was opened, so we can return to it afterwards
+        this.$originallyFocused = null; // element focused before the dialog was opened, so we can return to it afterward
     }
 
     doRender() {
@@ -96,7 +96,7 @@ export default class ConfirmDialog extends BasicWidget {
                         .append(
                             $("<input>")
                                 .attr("type", "checkbox")
-                                .addClass("form-check-input " + DELETE_NOTE_BUTTON_CLASS)
+                                .addClass(`form-check-input ${DELETE_NOTE_BUTTON_CLASS}`)
                         )
                         .append("Also delete the note")
                 ));
@@ -111,7 +111,7 @@ export default class ConfirmDialog extends BasicWidget {
     doResolve(ret) {
         this.resolve({
             confirmed: ret,
-            isDeleteNoteChecked: this.$widget.find("." + DELETE_NOTE_BUTTON_CLASS + ":checked").length > 0
+            isDeleteNoteChecked: this.$widget.find(`.${DELETE_NOTE_BUTTON_CLASS}:checked`).length > 0
         });
 
         this.resolve = null;

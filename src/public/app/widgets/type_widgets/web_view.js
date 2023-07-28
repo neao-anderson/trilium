@@ -19,7 +19,7 @@ const TPL = `
 </div>`;
 
 export default class WebViewTypeWidget extends TypeWidget {
-    static getType() { return "web-view"; }
+    static getType() { return "webView"; }
 
     doRender() {
         this.$widget = $(TPL);
@@ -66,7 +66,7 @@ export default class WebViewTypeWidget extends TypeWidget {
     }
 
     entitiesReloadedEvent({loadResults}) {
-        if (loadResults.getAttributes().find(attr => attr.name === 'webViewSrc' && attributeService.isAffecting(attr, this.noteContext.note))) {
+        if (loadResults.getAttributeRows().find(attr => attr.name === 'webViewSrc' && attributeService.isAffecting(attr, this.noteContext.note))) {
             this.refresh();
         }
     }

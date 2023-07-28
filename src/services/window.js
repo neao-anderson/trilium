@@ -9,13 +9,13 @@ const cls = require('./cls');
 const keyboardActionsService = require('./keyboard_actions');
 const {ipcMain} = require('electron');
 
-// Prevent window being garbage collected
+// Prevent the window being garbage collected
 /** @type {Electron.BrowserWindow} */
 let mainWindow;
 /** @type {Electron.BrowserWindow} */
 let setupWindow;
 
-async function createExtraWindow(notePath, hoistedNoteId = 'root') {
+async function createExtraWindow(extraWindowHash) {
     const spellcheckEnabled = optionService.getOptionBool('spellCheckEnabled');
 
     const {BrowserWindow} = require('electron');
@@ -35,20 +35,20 @@ async function createExtraWindow(notePath, hoistedNoteId = 'root') {
     });
 
     win.setMenuBarVisibility(false);
-    win.loadURL('http://127.0.0.1:' + await port + '/?extra=1&extraHoistedNoteId=' + hoistedNoteId + '#' + notePath);
+    win.loadURL(`http://127.0.0.1:${port}/?extraWindow=1${extraWindowHash}`);
 
     configureWebContents(win.webContents, spellcheckEnabled);
 }
 
 ipcMain.on('create-extra-window', (event, arg) => {
-    createExtraWindow(arg.notePath, arg.hoistedNoteId);
+    createExtraWindow(arg.extraWindowHash);
 });
 
-async function createMainWindow() {
+async function createMainWindow(app) {
     const windowStateKeeper = require('electron-window-state'); // should not be statically imported
 
     const mainWindowState = windowStateKeeper({
-        // default window width & height so it's usable on 1600 * 900 display (including some extra panels etc.)
+        // default window width & height, so it's usable on a 1600 * 900 display (including some extra panels etc.)
         defaultWidth: 1200,
         defaultHeight: 800
     });
@@ -77,20 +77,30 @@ async function createMainWindow() {
     mainWindowState.manage(mainWindow);
 
     mainWindow.setMenuBarVisibility(false);
-    mainWindow.loadURL('http://127.0.0.1:' + await port);
+    mainWindow.loadURL(`http://127.0.0.1:${port}`);
     mainWindow.on('closed', () => mainWindow = null);
 
     configureWebContents(mainWindow.webContents, spellcheckEnabled);
+
+    app.on('second-instance', () => {
+        // Someone tried to run a second instance, we should focus our window.
+        // see www.js "requestSingleInstanceLock" for the rest of this logic with explanation
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) {
+                mainWindow.restore();
+            }
+
+            mainWindow.focus();
+        }
+    });
 }
 
 function configureWebContents(webContents, spellcheckEnabled) {
     require("@electron/remote/main").enable(webContents);
 
-    webContents.on('new-window', (e, url) => {
-        if (url !== webContents.getURL()) {
-            e.preventDefault();
-            require('electron').shell.openExternal(url);
-        }
+    mainWindow.webContents.setWindowOpenHandler((details) => {
+        require("electron").shell.openExternal(details.url);
+        return { action: 'deny' }
     });
 
     // prevent drag & drop to navigate away from trilium
@@ -131,7 +141,7 @@ async function createSetupWindow() {
     });
 
     setupWindow.setMenuBarVisibility(false);
-    setupWindow.loadURL('http://127.0.0.1:' + await port);
+    setupWindow.loadURL(`http://127.0.0.1:${port}`);
     setupWindow.on('closed', () => setupWindow = null);
 }
 

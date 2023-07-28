@@ -40,6 +40,10 @@ function disableEntityEvents() {
     namespace.set('disableEntityEvents', true);
 }
 
+function enableEntityEvents() {
+    namespace.set('disableEntityEvents', false);
+}
+
 function isEntityEventsDisabled() {
     return !!namespace.get('disableEntityEvents');
 }
@@ -59,7 +63,7 @@ function addEntityChange(entityChange) {
 
     const entityChangeIds = namespace.get('entityChangeIds') || [];
 
-    // store only ID since the record can be modified (e.g. in erase)
+    // store only ID since the record can be modified (e.g., in erase)
     entityChangeIds.push(entityChange.id);
 
     namespace.set('entityChangeIds', entityChangeIds);
@@ -83,9 +87,10 @@ module.exports = {
     getComponentId,
     getLocalNowDateTime,
     disableEntityEvents,
+    enableEntityEvents,
     isEntityEventsDisabled,
     reset,
     getAndClearEntityChangeIds,
     addEntityChange,
-    ignoreEntityChangeIds
+    ignoreEntityChangeIds,
 };

@@ -28,14 +28,20 @@ const LOG_ALL_QUERIES = false;
 function insert(tableName, rec, replace = false) {
     const keys = Object.keys(rec);
     if (keys.length === 0) {
-        log.error("Can't insert empty object into table " + tableName);
+        log.error(`Can't insert empty object into table ${tableName}`);
         return;
     }
 
     const columns = keys.join(", ");
     const questionMarks = keys.map(p => "?").join(", ");
 
-    const query = "INSERT " + (replace ? "OR REPLACE" : "") + " INTO " + tableName + "(" + columns + ") VALUES (" + questionMarks + ")";
+    const query = `INSERT
+    ${replace ? "OR REPLACE" : ""} INTO
+    ${tableName}
+    (
+    ${columns}
+    )
+    VALUES (${questionMarks})`;
 
     const res = execute(query, Object.values(rec));
 
@@ -49,13 +55,13 @@ function replace(tableName, rec) {
 function upsert(tableName, primaryKey, rec) {
     const keys = Object.keys(rec);
     if (keys.length === 0) {
-        log.error("Can't upsert empty object into table " + tableName);
+        log.error(`Can't upsert empty object into table ${tableName}`);
         return;
     }
 
     const columns = keys.join(", ");
 
-    const questionMarks = keys.map(colName => "@" + colName).join(", ");
+    const questionMarks = keys.map(colName => `@${colName}`).join(", ");
 
     const updateMarks = keys.map(colName => `${colName} = @${colName}`).join(", ");
 
@@ -211,7 +217,7 @@ function wrap(query, func) {
             // in these cases error should be simply ignored.
             console.log(e.message);
 
-            return null
+            return null;
         }
 
         throw e;
@@ -250,6 +256,9 @@ function transactional(func) {
             require('../becca/becca_loader').load();
         }
 
+        // the maxEntityChangeId has been incremented during failed transaction, need to recalculate
+        require('./entity_changes').recalculateMaxEntityChangeId();
+
         throw e;
     }
 }
@@ -272,7 +281,7 @@ function fillParamList(paramIds, truncate = true) {
     }
 
     // doing it manually to avoid this showing up on the sloq query list
-    const s = stmt(`INSERT INTO param_list VALUES ` + paramIds.map(paramId => `(?)`).join(','), paramIds);
+    const s = stmt(`INSERT INTO param_list VALUES ${paramIds.map(paramId => `(?)`).join(',')}`);
 
     s.run(paramIds);
 }
@@ -297,7 +306,7 @@ module.exports = {
      * @method
      * @param {string} query - SQL query with ? used as parameter placeholder
      * @param {object[]} [params] - array of params if needed
-     * @return [object] - single value
+     * @returns [object] - single value
      */
     getValue,
 
@@ -307,7 +316,7 @@ module.exports = {
      * @method
      * @param {string} query - SQL query with ? used as parameter placeholder
      * @param {object[]} [params] - array of params if needed
-     * @return {object} - map of column name to column value
+     * @returns {object} - map of column name to column value
      */
     getRow,
     getRowOrNull,
@@ -318,7 +327,7 @@ module.exports = {
      * @method
      * @param {string} query - SQL query with ? used as parameter placeholder
      * @param {object[]} [params] - array of params if needed
-     * @return {object[]} - array of all rows, each row is a map of column name to column value
+     * @returns {object[]} - array of all rows, each row is a map of column name to column value
      */
     getRows,
     getRawRows,
@@ -331,7 +340,7 @@ module.exports = {
      * @method
      * @param {string} query - SQL query with ? used as parameter placeholder
      * @param {object[]} [params] - array of params if needed
-     * @return {object} - map of first column to second column
+     * @returns {object} - map of first column to second column
      */
     getMap,
 
@@ -341,7 +350,7 @@ module.exports = {
      * @method
      * @param {string} query - SQL query with ? used as parameter placeholder
      * @param {object[]} [params] - array of params if needed
-     * @return {object[]} - array of first column of all returned rows
+     * @returns {object[]} - array of first column of all returned rows
      */
     getColumn,
 

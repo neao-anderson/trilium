@@ -9,14 +9,11 @@ function returnImage(req, res) {
     const image = becca.getNote(req.params.noteId);
 
     if (!image) {
-        return res.sendStatus(404);
+        res.set('Content-Type', 'image/png');
+        return res.send(fs.readFileSync(`${RESOURCE_DIR}/db/image-deleted.png`));
     }
     else if (!["image", "canvas"].includes(image.type)){
         return res.sendStatus(400);
-    }
-    else if (image.isDeleted || image.data === null) {
-        res.set('Content-Type', 'image/png');
-        return res.send(fs.readFileSync(RESOURCE_DIR + '/db/image-deleted.png'));
     }
 
     /**
@@ -44,42 +41,33 @@ function returnImage(req, res) {
     }
 }
 
-function uploadImage(req) {
-    const {noteId} = req.query;
-    const {file} = req;
+function returnAttachedImage(req, res) {
+    const attachment = becca.getAttachment(req.params.attachmentId);
 
-    const note = becca.getNote(noteId);
-
-    if (!note) {
-        return [404, `Note ${noteId} doesn't exist.`];
+    if (!attachment) {
+        res.set('Content-Type', 'image/png');
+        return res.send(fs.readFileSync(`${RESOURCE_DIR}/db/image-deleted.png`));
     }
 
-    if (!["image/png", "image/jpg", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"].includes(file.mimetype)) {
-        return [400, "Unknown image type: " + file.mimetype];
+    if (!["image"].includes(attachment.role)) {
+        return res.sendStatus(400);
     }
 
-    const {url} = imageService.saveImage(noteId, file.buffer, file.originalname, true, true);
-
-    return {
-        uploaded: true,
-        url
-    };
+    res.set('Content-Type', attachment.mime);
+    res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.send(attachment.getContent());
 }
 
 function updateImage(req) {
     const {noteId} = req.params;
     const {file} = req;
 
-    const note = becca.getNote(noteId);
-
-    if (!note) {
-        return [404, `Note ${noteId} doesn't exist.`];
-    }
+    const note = becca.getNoteOrThrow(noteId);
 
     if (!["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"].includes(file.mimetype)) {
         return {
             uploaded: false,
-            message: "Unknown image type: " + file.mimetype
+            message: `Unknown image type: ${file.mimetype}`
         };
     }
 
@@ -90,6 +78,6 @@ function updateImage(req) {
 
 module.exports = {
     returnImage,
-    uploadImage,
+    returnAttachedImage,
     updateImage
 };

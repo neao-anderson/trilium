@@ -23,8 +23,6 @@ const CODE_MIRROR = {
 
 const ESLINT = {js: ["libraries/eslint.js"]};
 
-const COMMONMARK = {js: ["libraries/commonmark.min.js"]};
-
 const RELATION_MAP = {
     js: [
         "libraries/jsplumb.js",
@@ -86,6 +84,8 @@ async function requireLibrary(library) {
 const loadedScriptPromises = {};
 
 async function requireScript(url) {
+    url = `${window.glob.assetPath}/${url}`;
+
     if (!loadedScriptPromises[url]) {
         loadedScriptPromises[url] = $.ajax({
             url: url,
@@ -97,12 +97,16 @@ async function requireScript(url) {
     await loadedScriptPromises[url];
 }
 
-async function requireCss(url) {
+async function requireCss(url, prependAssetPath = true) {
     const cssLinks = Array
         .from(document.querySelectorAll('link'))
         .map(el => el.href);
 
     if (!cssLinks.some(l => l.endsWith(url))) {
+        if (prependAssetPath) {
+            url = `${window.glob.assetPath}/${url}`;
+        }
+
         $('head').append($('<link rel="stylesheet" type="text/css" />').attr('href', url));
     }
 }
@@ -113,7 +117,6 @@ export default {
     CKEDITOR,
     CODE_MIRROR,
     ESLINT,
-    COMMONMARK,
     RELATION_MAP,
     PRINT_THIS,
     CALENDAR_WIDGET,

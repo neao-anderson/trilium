@@ -58,8 +58,7 @@ async function sync() {
 
         if (e.message &&
                 (e.message.includes('ECONNREFUSED') ||
-                 e.message.includes('ERR_CONNECTION_REFUSED') ||
-                 e.message.includes('ERR_ADDRESS_UNREACHABLE') ||
+                 e.message.includes('ERR_') || // node network errors
                  e.message.includes('Bad Gateway'))) {
 
             ws.syncFailed();
@@ -72,7 +71,8 @@ async function sync() {
             };
         }
         else {
-            log.info("sync failed: " + e.message + "\nstack: " + e.stack);
+            log.info(`sync failed: ${e.message}
+stack: ${e.stack}`);
 
             ws.syncFailed();
 
@@ -108,14 +108,14 @@ async function doLogin() {
     });
 
     if (resp.instanceId === instanceId) {
-        throw new Error(`Sync server has member ID ${resp.instanceId} which is also local. This usually happens when the sync client is (mis)configured to sync with itself (URL points back to client) instead of the correct sync server.`);
+        throw new Error(`Sync server has member ID '${resp.instanceId}' which is also local. This usually happens when the sync client is (mis)configured to sync with itself (URL points back to client) instead of the correct sync server.`);
     }
 
     syncContext.instanceId = resp.instanceId;
 
     const lastSyncedPull = getLastSyncedPull();
 
-    // this is important in a scenario where we setup the sync by manually copying the document
+    // this is important in a scenario where we set up the sync by manually copying the document
     // lastSyncedPull then could be pretty off for the newly cloned client
     if (lastSyncedPull > resp.maxEntityChangeId) {
         log.info(`Lowering last synced pull from ${lastSyncedPull} to ${resp.maxEntityChangeId}`);
@@ -202,7 +202,7 @@ async function pushChanges(syncContext) {
         });
 
         if (filteredEntityChanges.length === 0) {
-            // there still might be more sync changes (because of batch limit), just all from current batch
+            // there still might be more sync changes (because of batch limit), just all the current batch
             // has been filtered out
             setLastSyncedPush(lastSyncedPush);
 
@@ -221,7 +221,7 @@ async function pushChanges(syncContext) {
 
         ws.syncPushInProgress();
 
-        log.info(`Sync ${logMarkerId}: Pushing ${entityChangesRecords.length} sync changes in ` + (Date.now() - startDate.getTime()) + "ms");
+        log.info(`Sync ${logMarkerId}: Pushing ${entityChangesRecords.length} sync changes in ${Date.now() - startDate.getTime()}ms`);
 
         lastSyncedPush = entityChangesRecords[entityChangesRecords.length - 1].entityChange.id;
 
@@ -254,7 +254,7 @@ async function checkContentHash(syncContext) {
     const failedChecks = contentHashService.checkContentHashes(resp.entityHashes);
 
     if (failedChecks.length > 0) {
-        // before requeuing sectors make sure the entity changes are correct
+        // before requeuing sectors, make sure the entity changes are correct
         const consistencyChecks = require("./consistency_checks");
         consistencyChecks.runEntityChangesChecks();
 
@@ -311,24 +311,24 @@ function getEntityChangeRow(entityName, entityId) {
         const primaryKey = entityConstructor.getEntityFromEntityName(entityName).primaryKeyName;
 
         if (!primaryKey) {
-            throw new Error("Unknown entity " + entityName);
+            throw new Error(`Unknown entity '${entityName}'`);
         }
 
-        const entity = sql.getRow(`SELECT * FROM ${entityName} WHERE ${primaryKey} = ?`, [entityId]);
+        const entityRow = sql.getRow(`SELECT * FROM ${entityName} WHERE ${primaryKey} = ?`, [entityId]);
 
-        if (!entity) {
-            throw new Error(`Entity ${entityName} ${entityId} not found.`);
+        if (!entityRow) {
+            throw new Error(`Entity ${entityName} '${entityId}' not found.`);
         }
 
-        if (['note_contents', 'note_revision_contents'].includes(entityName) && entity.content !== null) {
-            if (typeof entity.content === 'string') {
-                entity.content = Buffer.from(entity.content, 'UTF-8');
+        if (entityName === 'blobs' && entityRow.content !== null) {
+            if (typeof entityRow.content === 'string') {
+                entityRow.content = Buffer.from(entityRow.content, 'utf-8');
             }
 
-            entity.content = entity.content.toString("base64");
+            entityRow.content = entityRow.content.toString("base64");
         }
 
-        return entity;
+        return entityRow;
     }
 }
 
@@ -367,7 +367,7 @@ function setLastSyncedPull(entityChangeId) {
     const lastSyncedPullOption = becca.getOption('lastSyncedPull');
 
     if (lastSyncedPullOption) { // might be null in initial sync when becca is not loaded
-        lastSyncedPullOption.value = entityChangeId + '';
+        lastSyncedPullOption.value = `${entityChangeId}`;
     }
 
     // this way we avoid updating entity_changes which otherwise means that we've never pushed all entity_changes
@@ -388,7 +388,7 @@ function setLastSyncedPush(entityChangeId) {
     const lastSyncedPushOption = becca.getOption('lastSyncedPush');
 
     if (lastSyncedPushOption) { // might be null in initial sync when becca is not loaded
-        lastSyncedPushOption.value = entityChangeId + '';
+        lastSyncedPushOption.value = `${entityChangeId}`;
     }
 
     // this way we avoid updating entity_changes which otherwise means that we've never pushed all entity_changes

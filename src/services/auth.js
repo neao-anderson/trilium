@@ -4,9 +4,9 @@ const etapiTokenService = require("./etapi_tokens");
 const log = require('./log');
 const sqlInit = require('./sql_init');
 const utils = require('./utils');
-const passwordEncryptionService = require('./password_encryption');
+const passwordEncryptionService = require('./encryption/password_encryption');
 const config = require('./config');
-const passwordService = require("./password");
+const passwordService = require("./encryption/password");
 
 const noAuthentication = config.General && config.General.noAuthentication === true;
 
@@ -23,7 +23,7 @@ function checkAuth(req, res, next) {
 }
 
 // for electron things which need network stuff
-// currently we're doing that for file upload because handling form data seems to be difficult
+//  currently, we're doing that for file upload because handling form data seems to be difficult
 function checkApiAuthOrElectron(req, res, next) {
     if (!req.session.loggedIn && !utils.isElectron() && !noAuthentication) {
         reject(req, res, "Logged in session not found");
@@ -110,8 +110,8 @@ function checkCredentials(req, res, next) {
 
     const header = req.headers['trilium-cred'] || '';
     const auth = new Buffer.from(header, 'base64').toString();
-    const [username, password] = auth.split(/:/);
-
+    const colonIndex = auth.indexOf(':');
+    const password = colonIndex === -1 ? "" : auth.substr(colonIndex + 1);
     // username is ignored
 
     if (!passwordEncryptionService.verifyPassword(password)) {

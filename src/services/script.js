@@ -35,8 +35,10 @@ function executeBundle(bundle, apiParams = {}) {
     cls.set('componentId', 'script');
     cls.set('bundleNoteId', bundle.note.noteId);
 
-    // last \r\n is necessary if script contains line comment on its last line
-    const script = "function() {\r\n" + bundle.script + "\r\n}";
+    // last \r\n is necessary if the script contains line comment on its last line
+    const script = `function() {\r
+${bundle.script}\r
+}`;
     const ctx = new ScriptContext(bundle.allNotes, apiParams);
 
     try {
@@ -53,7 +55,7 @@ function executeBundle(bundle, apiParams = {}) {
 }
 
 /**
- * THIS METHOD CANT BE ASYNC, OTHERWISE TRANSACTION WRAPPER WON'T BE EFFECTIVE AND WE WILL BE LOSING THE
+ * THIS METHOD CAN'T BE ASYNC, OTHERWISE TRANSACTION WRAPPER WON'T BE EFFECTIVE AND WE WILL BE LOSING THE
  * ENTITY CHANGES IN CLS.
  *
  * This method preserves frontend startNode - that's why we start execution from currentNote and override
@@ -64,8 +66,8 @@ function executeScript(script, params, startNoteId, currentNoteId, originEntityN
     const currentNote = becca.getNote(currentNoteId);
     const originEntity = becca.getEntity(originEntityName, originEntityId);
 
-    // we're just executing an excerpt of the original frontend script in the backend context so we must
-    // override normal note's content and it's mime type / script environment
+    // we're just executing an excerpt of the original frontend script in the backend context, so we must
+    // override normal note's content, and it's mime type / script environment
     const backendOverrideContent = `return (${script}\r\n)(${getParams(params)})`;
 
     const bundle = getScriptBundle(currentNote, true, null, [], backendOverrideContent);
@@ -92,6 +94,9 @@ function getParams(params) {
     }).join(",");
 }
 
+/**
+ * @param {BNote} note
+ */
 function getScriptBundleForFrontend(note) {
     const bundle = getScriptBundle(note);
 
@@ -99,7 +104,7 @@ function getScriptBundleForFrontend(note) {
         return;
     }
 
-    // for frontend we return just noteIds because frontend needs to use its own entity instances
+    // for frontend, we return just noteIds because frontend needs to use its own entity instances
     bundle.noteId = bundle.note.noteId;
     delete bundle.note;
 
@@ -109,6 +114,13 @@ function getScriptBundleForFrontend(note) {
     return bundle;
 }
 
+/**
+ * @param {BNote} note
+ * @param {boolean} [root=true]
+ * @param {string|null} [scriptEnv]
+ * @param {string[]} [includedNoteIds]
+ * @param {string|null} [backendOverrideContent]
+ */
 function getScriptBundle(note, root = true, scriptEnv = null, includedNoteIds = [], backendOverrideContent = null) {
     if (!note.isContentAvailable()) {
         return;
@@ -123,7 +135,7 @@ function getScriptBundle(note, root = true, scriptEnv = null, includedNoteIds = 
     }
 
     if (root) {
-        scriptEnv = !!backendOverrideContent
+        scriptEnv = backendOverrideContent
             ? 'backend'
             : note.getScriptEnv();
     }
@@ -165,17 +177,14 @@ function getScriptBundle(note, root = true, scriptEnv = null, includedNoteIds = 
 
     if (note.isJavaScript()) {
         bundle.script += `
-apiContext.modules['${note.noteId}'] = {};
-${root ? 'return ' : ''}${isFrontend ? 'await' : ''} ((${isFrontend ? 'async' : ''} function(exports, module, require, api` + (modules.length > 0 ? ', ' : '') +
-            modules.map(child => sanitizeVariableName(child.title)).join(', ') + `) {
+apiContext.modules['${note.noteId}'] = { exports: {} };
+${root ? 'return ' : ''}${isFrontend ? 'await' : ''} ((${isFrontend ? 'async' : ''} function(exports, module, require, api${modules.length > 0 ? ', ' : ''}${modules.map(child => sanitizeVariableName(child.title)).join(', ')}) {
 try {
 ${backendOverrideContent || note.getContent()};
 } catch (e) { throw new Error("Load of script note \\"${note.title}\\" (${note.noteId}) failed with: " + e.message); }
-if (!module.exports) module.exports = {};
 for (const exportKey in exports) module.exports[exportKey] = exports[exportKey];
 return module.exports;
-}).call({}, {}, apiContext.modules['${note.noteId}'], apiContext.require(${JSON.stringify(moduleNoteIds)}), apiContext.apis['${note.noteId}']` + (modules.length > 0 ? ', ' : '') +
-            modules.map(mod => `apiContext.modules['${mod.noteId}'].exports`).join(', ') + `));
+}).call({}, {}, apiContext.modules['${note.noteId}'], apiContext.require(${JSON.stringify(moduleNoteIds)}), apiContext.apis['${note.noteId}']${modules.length > 0 ? ', ' : ''}${modules.map(mod => `apiContext.modules['${mod.noteId}'].exports`).join(', ')}));
 `;
     }
     else if (note.isHtml()) {

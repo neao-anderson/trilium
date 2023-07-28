@@ -9,12 +9,12 @@ function getFontCss(req, res) {
         return;
     }
 
-    const optionsMap = optionService.getOptionsMap();
+    const optionsMap = optionService.getOptionMap();
 
-    const mainFontFamilyOverridden = optionsMap.mainFontFamily != 'theme';
-    const treeFontFamilyOverridden = optionsMap.treeFontFamily != 'theme';
-    const detailFontFamilyOverridden = optionsMap.detailFontFamily != 'theme';
-    const monospaceFontFamilyOverridden = optionsMap.monospaceFontFamily != 'theme';
+    const mainFontFamilyOverridden = optionsMap.mainFontFamily !== 'theme';
+    const treeFontFamilyOverridden = optionsMap.treeFontFamily !== 'theme';
+    const detailFontFamilyOverridden = optionsMap.detailFontFamily !== 'theme';
+    const monospaceFontFamilyOverridden = optionsMap.monospaceFontFamily !== 'theme';
 
     // using body to be more specific than themes' :root
     let style = 'body {';

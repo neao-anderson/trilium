@@ -43,8 +43,8 @@ export default class InheritedAttributesWidget extends NoteContextAwareWidget {
 
     getTitle() {
         return {
-            show: true,
-            title: "Inherited attributes",
+            show: !this.note.isLaunchBarConfig(),
+            title: "Inherited Attributes",
             icon: "bx bx-list-plus"
         };
     }
@@ -92,11 +92,22 @@ export default class InheritedAttributesWidget extends NoteContextAwareWidget {
     }
 
     getInheritedAttributes(note) {
-        return note.getAttributes().filter(attr => attr.noteId !== this.noteId);
+        const attrs = note.getAttributes().filter(attr => attr.noteId !== this.noteId);
+
+        attrs.sort((a, b) => {
+            if (a.noteId === b.noteId) {
+                return a.position < b.position ? -1 : 1;
+            } else {
+                // inherited attributes should stay grouped: https://github.com/zadam/trilium/issues/3761
+                return a.noteId < b.noteId ? -1 : 1;
+            }
+        });
+
+        return attrs;
     }
 
     entitiesReloadedEvent({loadResults}) {
-        if (loadResults.getAttributes(this.componentId).find(attr => attributeService.isAffecting(attr, this.note))) {
+        if (loadResults.getAttributeRows(this.componentId).find(attr => attributeService.isAffecting(attr, this.note))) {
             this.refresh();
         }
     }

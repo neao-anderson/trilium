@@ -1,5 +1,5 @@
 import linkService from "./link.js";
-import noteContentRenderer from "./note_content_renderer.js";
+import contentRenderer from "./content_renderer.js";
 import froca from "./froca.js";
 import attributeRenderer from "./attribute_renderer.js";
 import libraryLoader from "./library_loader.js";
@@ -12,133 +12,144 @@ const TPL = `
         position: relative;
         height: 100%;
     }
-    
+
     .note-list.grid-view .note-list-container {
         display: flex;
         flex-wrap: wrap;
     }
-    
+
     .note-list.grid-view .note-book-card {
         flex-basis: 300px;
         border: 1px solid transparent;
     }
-    
+
     .note-list.grid-view .note-expander {
         display: none;
     }
-    
+
     .note-list.grid-view .note-book-card {
         max-height: 300px;
     }
     
+    .note-list.grid-view .note-book-card img {
+        max-height: 220px;
+        object-fit: contain;
+    }
+
     .note-list.grid-view .note-book-card:hover {
         cursor: pointer;
         border: 1px solid var(--main-border-color);
         background: var(--more-accented-background-color);
     }
-    
+
     .note-book-card {
         border-radius: 10px;
         background-color: var(--accented-background-color);
         padding: 10px 15px 15px 8px;
-        margin: 5px 5px 5px 0;
+        margin: 5px 5px 5px 5px;
         overflow: hidden;
         display: flex;
         flex-direction: column;
         flex-shrink: 0;
         flex-grow: 1;
     }
-    
+
     .note-book-card:not(.expanded) .note-book-content {
         display: none !important;
         padding: 10px
     }
-    
+
     .note-book-card.expanded .note-book-content {
         display: block;
         min-height: 0;
         height: 100%;
         padding-top: 10px;
     }
-    
+
+    .note-book-content .rendered-content {
+        height: 100%;
+    }
+
     .note-book-header {
+        border-bottom: 1px solid var(--main-border-color);
         margin-bottom: 0;
+        padding-bottom: .5rem;
         word-break: break-all;
     }
-    
+
     /* not-expanded title is limited to one line only */
     .note-book-card:not(.expanded) .note-book-header {
         overflow: hidden;
         white-space: nowrap;
         text-overflow: ellipsis;
     }
-    
+
     .note-book-header .rendered-note-attributes {
         font-size: medium;
     }
-    
+
     .note-book-header .rendered-note-attributes:before {
         content: "\\00a0\\00a0";
     }
-    
+
     .note-book-header .note-icon {
         font-size: 100%;
         display: inline-block;
         padding-right: 7px;
         position: relative;
     }
-    
+
     .note-book-card .note-book-card {
         border: 1px solid var(--main-border-color);
     }
-    
-    .note-book-content.type-image, .note-book-content.type-file, .note-book-content.type-protected-session {
+
+    .note-book-content.type-image, .note-book-content.type-file, .note-book-content.type-protectedSession {
         display: flex;
         align-items: center;
         justify-content: center;
         text-align: center;
         padding: 10px;
     }
-    
+
     .note-book-content.type-image img, .note-book-content.type-canvas svg {
         max-width: 100%;
         max-height: 100%;
         object-fit: contain;
     }
-    
+
     .note-book-card.type-image .note-book-content img,
     .note-book-card.type-text .note-book-content img,
     .note-book-card.type-canvas .note-book-content img {
         max-width: 100%;
         max-height: 100%;
     }
-    
+
     .note-book-header {
         flex-grow: 0;
     }
-    
+
     .note-list-wrapper {
         height: 100%;
         overflow: auto;
     }
-    
+
     .note-expander {
         font-size: x-large;
         position: relative;
         top: 3px;
         cursor: pointer;
     }
-    
+
     .note-list-pager {
         text-align: center;
     }
     </style>
-    
+
     <div class="note-list-wrapper">
         <div class="note-list-pager"></div>
-    
+
         <div class="note-list-container"></div>
-        
+
         <div class="note-list-pager"></div>
     </div>
 </div>`;
@@ -150,13 +161,13 @@ class NoteListRenderer {
     constructor($parent, parentNote, noteIds, showNotePath = false) {
         this.$noteList = $(TPL);
 
-        // note list must be added to the DOM immediatelly, otherwise some functionality scripting (canvas) won't work
+        // note list must be added to the DOM immediately, otherwise some functionality scripting (canvas) won't work
         $parent.empty();
 
         this.parentNote = parentNote;
         const includedNoteIds = this.getIncludedNoteIds();
 
-        this.noteIds = noteIds.filter(noteId => !includedNoteIds.has(noteId) && noteId !== 'hidden');
+        this.noteIds = noteIds.filter(noteId => !includedNoteIds.has(noteId) && noteId !== '_hidden');
 
         if (this.noteIds.length === 0) {
             return;
@@ -174,16 +185,16 @@ class NoteListRenderer {
         this.viewType = parentNote.getLabelValue('viewType');
 
         if (!['list', 'grid'].includes(this.viewType)) {
-            // when not explicitly set decide based on note type
+            // when not explicitly set, decide based on the note type
             this.viewType = parentNote.type === 'search' ? 'list' : 'grid';
         }
 
-        this.$noteList.addClass(this.viewType + '-view');
+        this.$noteList.addClass(`${this.viewType}-view`);
 
         this.showNotePath = showNotePath;
     }
 
-    /** @returns {Set<string>} list of noteIds included (images, included notes) into a parent note and which
+    /** @returns {Set<string>} list of noteIds included (images, included notes) in the parent note and which
      *                        don't have to be shown in the note list. */
     getIncludedNoteIds() {
         const includedLinks = this.parentNote
@@ -219,7 +230,7 @@ class NoteListRenderer {
         const pageNotes = await froca.getNotes(pageNoteIds);
 
         for (const note of pageNotes) {
-            const $card = await this.renderNote(note, this.parentNote.hasLabel('expanded'));
+            const $card = await this.renderNote(note, this.parentNote.isLabelTruthy('expanded'));
 
             $container.append($card);
         }
@@ -266,8 +277,8 @@ class NoteListRenderer {
 
         const {$renderedAttributes} = await attributeRenderer.renderNormalAttributes(note);
         const notePath = this.parentNote.type === 'search'
-            ? note.noteId // for search note parent we want to display non-search path
-            : this.parentNote.noteId + '/' + note.noteId;
+            ? note.noteId // for search note parent, we want to display a non-search path
+            : `${this.parentNote.noteId}/${note.noteId}`;
 
         const $card = $('<div class="note-book-card">')
             .attr('data-note-id', note.noteId)
@@ -277,7 +288,7 @@ class NoteListRenderer {
                     .append($('<span class="note-icon">').addClass(note.getIcon()))
                     .append(this.viewType === 'grid'
                         ? $('<span class="note-book-title">').text(note.title)
-                        : (await linkService.createNoteLink(notePath, {showTooltip: false, showNotePath: this.showNotePath}))
+                        : (await linkService.createLink(notePath, {showTooltip: false, showNotePath: this.showNotePath}))
                             .addClass("note-book-title")
                     )
                     .append($renderedAttributes)
@@ -286,7 +297,7 @@ class NoteListRenderer {
         if (this.viewType === 'grid') {
             $card
                 .addClass("block-link")
-                .attr("data-note-path", notePath)
+                .attr("data-href", `#${notePath}`)
                 .on('click', e => linkService.goToLink(e));
         }
 
@@ -331,7 +342,7 @@ class NoteListRenderer {
         const $content = $('<div class="note-book-content">');
 
         try {
-            const {$renderedContent, type} = await noteContentRenderer.getRenderedContent(note, {
+            const {$renderedContent, type} = await contentRenderer.getRenderedContent(note, {
                 trim: this.viewType === 'grid' // for grid only short content is needed
             });
 
@@ -345,9 +356,9 @@ class NoteListRenderer {
             }
 
             $content.append($renderedContent);
-            $content.addClass("type-" + type);
+            $content.addClass(`type-${type}`);
         } catch (e) {
-            console.log(`Caught error while rendering note ${note.noteId} of type ${note.type}: ${e.message}, stack: ${e.stack}`);
+            console.log(`Caught error while rendering note '${note.noteId}' of type '${note.type}': ${e.message}, stack: ${e.stack}`);
 
             $content.append("rendering error");
         }

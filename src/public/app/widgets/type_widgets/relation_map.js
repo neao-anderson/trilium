@@ -1,14 +1,14 @@
 import server from "../../services/server.js";
 import linkService from "../../services/link.js";
 import libraryLoader from "../../services/library_loader.js";
-import contextMenu from "../../services/context_menu.js";
+import contextMenu from "../../menus/context_menu.js";
 import toastService from "../../services/toast.js";
 import attributeAutocompleteService from "../../services/attribute_autocomplete.js";
 import TypeWidget from "./type_widget.js";
-import appContext from "../../services/app_context.js";
+import appContext from "../../components/app_context.js";
 import utils from "../../services/utils.js";
 import froca from "../../services/froca.js";
-import dialogService from "../../widgets/dialog.js";
+import dialogService from "../../services/dialog.js";
 
 const uniDirectionalOverlays = [
     [ "Arrow", {
@@ -74,7 +74,7 @@ const TPL = `
 let containerCounter = 1;
 
 export default class RelationMapTypeWidget extends TypeWidget {
-    static getType() { return "relation-map"; }
+    static getType() { return "relationMap"; }
 
     doRender() {
         this.$widget = $(TPL);
@@ -91,7 +91,7 @@ export default class RelationMapTypeWidget extends TypeWidget {
             if (this.clipboard) {
                 let {x, y} = this.getMousePosition(event);
 
-                // modifying position so that cursor is on the top-center of the box
+                // modifying position so that the cursor is on the top-center of the box
                 x -= 80;
                 y -= 15;
 
@@ -120,7 +120,7 @@ export default class RelationMapTypeWidget extends TypeWidget {
                 selectMenuItemHandler: ({command}) => this.contextMenuHandler(command, e.target)
             });
 
-            return false;
+            return false; // blocks default browser right click menu
         });
 
         this.clipboard = null;
@@ -186,8 +186,8 @@ export default class RelationMapTypeWidget extends TypeWidget {
     async loadMapData() {
         this.mapData = {
             notes: [],
-            // it is important to have this exact value here so that initial transform is same as this
-            // which will guarantee note won't be saved on first conversion to relation map note type
+            // it is important to have this exact value here so that initial transform is the same as this
+            // which will guarantee note won't be saved on first conversion to the relation map note type
             // this keeps the principle that note type change doesn't destroy note content unless user
             // does some actual change
             transform: {
@@ -197,11 +197,11 @@ export default class RelationMapTypeWidget extends TypeWidget {
             }
         };
 
-        const noteComplement = await this.noteContext.getNoteComplement();
+        const blob = await this.note.getBlob();
 
-        if (noteComplement.content) {
+        if (blob.content) {
             try {
-                this.mapData = JSON.parse(noteComplement.content);
+                this.mapData = JSON.parse(blob.content);
             } catch (e) {
                 console.log("Could not parse content: ", e);
             }
@@ -209,7 +209,7 @@ export default class RelationMapTypeWidget extends TypeWidget {
     }
 
     noteIdToId(noteId) {
-        return "rel-map-note-" + noteId;
+        return `rel-map-note-${noteId}`;
     }
 
     idToNoteId(id) {
@@ -231,13 +231,13 @@ export default class RelationMapTypeWidget extends TypeWidget {
         // this is done at this point (after async operations) to reduce flicker to the minimum
         this.jsPlumbInstance.deleteEveryEndpoint();
 
-        // without this we still end up with note boxes remaining in the canvas
+        // without this, we still end up with note boxes remaining in the canvas
         this.$relationMapContainer.empty();
     }
 
     async loadNotesAndRelations() {
         const noteIds = this.mapData.notes.map(note => note.noteId);
-        const data = await server.post("notes/relation-map", {noteIds, relationMapNoteId: this.noteId});
+        const data = await server.post("relation-map", {noteIds, relationMapNoteId: this.noteId});
 
         this.relations = [];
 
@@ -305,7 +305,7 @@ export default class RelationMapTypeWidget extends TypeWidget {
             minZoom: 0.3,
             smoothScroll: false,
             filterKey: function(e, dx, dy, dz) {
-                // if ALT is pressed then panzoom should bubble the event up
+                // if ALT is pressed, then panzoom should bubble the event up
                 // this is to preserve ALT-LEFT, ALT-RIGHT navigation working
                 return e.altKey;
             }
@@ -412,7 +412,7 @@ export default class RelationMapTypeWidget extends TypeWidget {
             }
         });
 
-        // if there's no event, then this has been triggered programatically
+        // if there's no event, then this has been triggered programmatically
         if (!originalEvent) {
             return;
         }
@@ -469,12 +469,8 @@ export default class RelationMapTypeWidget extends TypeWidget {
     }
 
     async createNoteBox(noteId, title, x, y) {
-        const $link = await linkService.createNoteLink(noteId, {title});
-        $link.mousedown(e => {
-            console.log(e);
-
-            linkService.goToLink(e);
-        });
+        const $link = await linkService.createLink(noteId, {title});
+        $link.mousedown(e => linkService.goToLink(e));
 
         const note = await froca.getNote(noteId);
 
@@ -484,8 +480,8 @@ export default class RelationMapTypeWidget extends TypeWidget {
             .prop("id", this.noteIdToId(noteId))
             .append($("<span>").addClass("title").append($link))
             .append($("<div>").addClass("endpoint").attr("title", "Start dragging relations from here and drop them on another note."))
-            .css("left", x + "px")
-            .css("top", y + "px");
+            .css("left", `${x}px`)
+            .css("top", `${y}px`);
 
         this.jsPlumbInstance.getContainer().appendChild($noteBox[0]);
 
@@ -537,7 +533,7 @@ export default class RelationMapTypeWidget extends TypeWidget {
         const matches = transform.match(matrixRegex);
 
         if (!matches) {
-            throw new Error("Cannot match transform: " + transform);
+            throw new Error(`Cannot match transform: ${transform}`);
         }
 
         return matches[1];
@@ -586,8 +582,10 @@ export default class RelationMapTypeWidget extends TypeWidget {
         };
     }
 
-    getContent() {
-        return JSON.stringify(this.mapData);
+    getData() {
+        return {
+            content: JSON.stringify(this.mapData)
+        };
     }
 
     async relationMapCreateChildNoteEvent({ntxId}) {

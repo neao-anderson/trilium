@@ -1,7 +1,8 @@
 import noteAutocompleteService from '../../services/note_autocomplete.js';
 import utils from "../../services/utils.js";
-import appContext from "../../services/app_context.js";
+import appContext from "../../components/app_context.js";
 import BasicWidget from "../basic_widget.js";
+import shortcutService from "../../services/shortcuts.js";
 
 const TPL = `<div class="jump-to-note-dialog modal mx-auto" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg" role="document">
@@ -42,7 +43,7 @@ export default class JumpToNoteDialog extends BasicWidget {
         this.$showInFullTextButton = this.$widget.find(".show-in-full-text-button");
         this.$showInFullTextButton.on('click', e => this.showInFullText(e));
 
-        utils.bindElShortcut(this.$widget, 'ctrl+return', e => this.showInFullText(e));
+        shortcutService.bindElShortcut(this.$widget, 'ctrl+return', e => this.showInFullText(e));
     }
 
     async jumpToNoteEvent() {
@@ -66,10 +67,10 @@ export default class JumpToNoteDialog extends BasicWidget {
                 appContext.tabManager.getActiveContext().setNote(suggestion.notePath);
             });
 
-        // if you open the Jump To dialog soon after using it previously it can often mean that you
-        // actually want to search for the same thing (e.g. you opened the wrong note at first try)
+        // if you open the Jump To dialog soon after using it previously, it can often mean that you
+        // actually want to search for the same thing (e.g., you opened the wrong note at first try)
         // so we'll keep the content.
-        // if it's outside of this time limit then we assume it's a completely new search and show recent notes instead.
+        // if it's outside of this time limit, then we assume it's a completely new search and show recent notes instead.
         if (Date.now() - this.lastOpenedTs > KEEP_LAST_SEARCH_FOR_X_SECONDS * 1000) {
             noteAutocompleteService.showRecentNotes(this.$autoComplete);
         } else {
@@ -83,7 +84,7 @@ export default class JumpToNoteDialog extends BasicWidget {
     }
 
     showInFullText(e) {
-        // stop from propagating upwards (dangerous especially with ctrl+enter executable javascript notes)
+        // stop from propagating upwards (dangerous, especially with ctrl+enter executable javascript notes)
         e.preventDefault();
         e.stopPropagation();
 

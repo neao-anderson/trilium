@@ -7,7 +7,19 @@ const config = require('./config');
 const syncMutexService = require('./sync_mutex');
 const protectedSessionService = require('./protected_session');
 const becca = require("../becca/becca");
-const AbstractEntity = require("../becca/entities/abstract_entity");
+const AbstractBeccaEntity = require("../becca/entities/abstract_becca_entity");
+
+const env = require('./env');
+if (env.isDev()) {
+    const chokidar = require('chokidar');
+    const debounce = require('debounce');
+    const debouncedReloadFrontend = debounce(reloadFrontend, 200);
+    chokidar
+        .watch('src/public')
+        .on('add', debouncedReloadFrontend)
+        .on('change', debouncedReloadFrontend)
+        .on('unlink', debouncedReloadFrontend);
+}
 
 let webSocketServer;
 let lastSyncedPush = null;
@@ -39,10 +51,11 @@ function init(httpServer, sessionParser) {
             const message = JSON.parse(messageJson);
 
             if (message.type === 'log-error') {
-                log.info('JS Error: ' + message.error + '\r\nStack: ' + message.stack);
+                log.info(`JS Error: ${message.error}\r
+Stack: ${message.stack}`);
             }
             else if (message.type === 'log-info') {
-                log.info('JS Info: ' + message.info);
+                log.info(`JS Info: ${message.info}`);
             }
             else if (message.type === 'ping') {
                 await syncMutexService.doExclusively(() => sendPing(ws));
@@ -52,6 +65,11 @@ function init(httpServer, sessionParser) {
                 log.error(message);
             }
         });
+    });
+
+    webSocketServer.on('error', error => {
+        // https://github.com/zadam/trilium/issues/3374#issuecomment-1341053765
+        console.log(error);
     });
 }
 
@@ -67,8 +85,8 @@ function sendMessageToAllClients(message) {
     const jsonStr = JSON.stringify(message);
 
     if (webSocketServer) {
-        if (message.type !== 'sync-failed') {
-            log.info("Sending message to all clients: " + jsonStr);
+        if (message.type !== 'sync-failed' && message.type !== 'api-log-messages') {
+            log.info(`Sending message to all clients: ${jsonStr}`);
         }
 
         webSocketServer.clients.forEach(function each(client) {
@@ -85,8 +103,8 @@ function fillInAdditionalProperties(entityChange) {
     }
 
     // fill in some extra data needed by the frontend
-    // first try to use becca which works for non-deleted entities
-    // only when that fails try to load from database
+    // first try to use becca, which works for non-deleted entities
+    // only when that fails, try to load from the database
     if (entityChange.entityName === 'attributes') {
         entityChange.entity = becca.getAttribute(entityChange.entityId);
 
@@ -109,10 +127,10 @@ function fillInAdditionalProperties(entityChange) {
                 entityChange.entity.title = protectedSessionService.decryptString(entityChange.entity.title);
             }
         }
-    } else if (entityChange.entityName === 'note_revisions') {
+    } else if (entityChange.entityName === 'revisions') {
         entityChange.noteId = sql.getValue(`SELECT noteId
-                                          FROM note_revisions
-                                          WHERE noteRevisionId = ?`, [entityChange.entityId]);
+                                          FROM revisions
+                                          WHERE revisionId = ?`, [entityChange.entityId]);
     } else if (entityChange.entityName === 'note_reordering') {
         entityChange.positions = {};
 
@@ -123,16 +141,22 @@ function fillInAdditionalProperties(entityChange) {
                 entityChange.positions[childBranch.branchId] = childBranch.notePosition;
             }
         }
-    }
-    else if (entityChange.entityName === 'options') {
+    } else if (entityChange.entityName === 'options') {
         entityChange.entity = becca.getOption(entityChange.entityId);
 
         if (!entityChange.entity) {
             entityChange.entity = sql.getRow(`SELECT * FROM options WHERE name = ?`, [entityChange.entityId]);
         }
+    } else if (entityChange.entityName === 'blobs') {
+        entityChange.noteIds = sql.getColumn("SELECT noteId FROM notes WHERE blobId = ? AND isDeleted = 0", [entityChange.entityId]);
+    } else if (entityChange.entityName === 'attachments') {
+        entityChange.entity = sql.getRow(`SELECT attachments.*, LENGTH(blobs.content) AS contentLength
+                                                FROM attachments
+                                                JOIN blobs USING (blobId)
+                                                WHERE attachmentId = ?`, [entityChange.entityId]);
     }
 
-    if (entityChange.entity instanceof AbstractEntity) {
+    if (entityChange.entity instanceof AbstractBeccaEntity) {
         entityChange.entity = entityChange.entity.getPojo();
     }
 }
@@ -140,13 +164,13 @@ function fillInAdditionalProperties(entityChange) {
 // entities with higher number can reference the entities with lower number
 const ORDERING = {
     "etapi_tokens": 0,
-    "attributes": 1,
-    "branches": 1,
-    "note_contents": 1,
-    "note_reordering": 1,
-    "note_revision_contents": 2,
-    "note_revisions": 1,
-    "notes": 0,
+    "attributes": 2,
+    "branches": 2,
+    "blobs": 0,
+    "note_reordering": 2,
+    "revisions": 2,
+    "attachments": 3,
+    "notes": 1,
     "options": 0
 };
 
@@ -161,7 +185,7 @@ function sendPing(client, entityChangeIds = []) {
 
     // sort entity changes since froca expects "referential order", i.e. referenced entities should already exist
     // in froca.
-    // Froca needs this since it is incomplete copy, it can't create "skeletons" like becca.
+    // Froca needs this since it is an incomplete copy, it can't create "skeletons" like becca.
     entityChanges.sort((a, b) => ORDERING[a.entityName] - ORDERING[b.entityName]);
 
     for (const entityChange of entityChanges) {
@@ -169,8 +193,7 @@ function sendPing(client, entityChangeIds = []) {
             fillInAdditionalProperties(entityChange);
         }
         catch (e) {
-            log.error("Could not fill additional properties for entity change " + JSON.stringify(entityChange)
-                + " because of error: " + e.message + ": " + e.stack);
+            log.error(`Could not fill additional properties for entity change ${JSON.stringify(entityChange)} because of error: ${e.message}: ${e.stack}`);
         }
     }
 

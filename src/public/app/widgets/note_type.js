@@ -1,21 +1,24 @@
 import server from '../services/server.js';
 import mimeTypesService from '../services/mime_types.js';
 import NoteContextAwareWidget from "./note_context_aware_widget.js";
-import dialogService from "./dialog.js";
+import dialogService from "../services/dialog.js";
 
 const NOTE_TYPES = [
     { type: "file", title: "File", selectable: false },
     { type: "image", title: "Image", selectable: false },
     { type: "search", title: "Saved Search", selectable: false },
-    { type: "note-map", mime: '', title: "Note Map", selectable: false },
+    { type: "noteMap", mime: '', title: "Note Map", selectable: false },
+    { type: "launcher", mime: '', title: "Launcher", selectable: false },
+    { type: "doc", mime: '', title: "Doc", selectable: false },
+    { type: "contentWidget", mime: '', title: "Widget", selectable: false },
 
     { type: "text", mime: "text/html", title: "Text", selectable: true },
-    { type: "relation-map", mime: "application/json", title: "Relation Map", selectable: true },
+    { type: "relationMap", mime: "application/json", title: "Relation Map", selectable: true },
     { type: "render", mime: '', title: "Render Note", selectable: true },
     { type: "canvas", mime: 'application/json', title: "Canvas", selectable: true },
     { type: "mermaid", mime: 'text/mermaid', title: "Mermaid Diagram", selectable: true },
     { type: "book", mime: '', title: "Book", selectable: true },
-    { type: "web-view", mime: '', title: "Web View", selectable: true },
+    { type: "webView", mime: '', title: "Web View", selectable: true },
     { type: "code", mime: 'text/plain', title: "Code", selectable: true }
 ];
 
@@ -61,7 +64,7 @@ export default class NoteTypeWidget extends NoteContextAwareWidget {
         this.$noteTypeButton.dropdown('hide');
     }
 
-    /** actual body is rendered lazily on note-type button click */
+    /** the actual body is rendered lazily on note-type button click */
     async renderDropdown() {
         this.$noteTypeDropdown.empty();
 
@@ -136,13 +139,13 @@ export default class NoteTypeWidget extends NoteContextAwareWidget {
             return;
         }
 
-        await server.put('notes/' + this.noteId + '/type', { type, mime });
+        await server.put(`notes/${this.noteId}/type`, { type, mime });
     }
 
     async confirmChangeIfContent() {
-        const noteComplement = await this.noteContext.getNoteComplement();
+        const blob = await this.note.getBlob();
 
-        if (!noteComplement.content || !noteComplement.content.trim().length) {
+        if (!blob.content || !blob.content.trim().length) {
             return true;
         }
 

@@ -13,7 +13,7 @@ class AttributeExistsExp extends Expression {
         this.prefixMatch = prefixMatch;
     }
 
-    execute(inputNoteSet) {
+    execute(inputNoteSet, executionContext, searchContext) {
         const attrs = this.prefixMatch
             ? becca.findAttributesWithPrefix(this.attributeType, this.attributeName)
             : becca.findAttributes(this.attributeType, this.attributeName);
@@ -26,10 +26,10 @@ class AttributeExistsExp extends Expression {
             if (attr.isInheritable) {
                 resultNoteSet.addAll(note.getSubtreeNotesIncludingTemplated());
             }
-            else if (note.isTemplate() &&
+            else if (note.isInherited() &&
                 // template attr is used as a marker for templates, but it's not meant to be inherited
-                !(this.attributeType === 'label' && this.attributeName === 'template')) {
-                resultNoteSet.addAll(note.getTemplatedNotes());
+                !(this.attributeType === 'label' && (this.attributeName === 'template' || this.attributeName === 'workspacetemplate'))) {
+                resultNoteSet.addAll(note.getInheritingNotes());
             }
             else {
                 resultNoteSet.add(note);

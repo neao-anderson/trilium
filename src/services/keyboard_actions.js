@@ -14,13 +14,13 @@ const DEFAULT_KEYBOARD_ACTIONS = [
     {
         actionName: "backInNoteHistory",
         // Mac has a different history navigation shortcuts - https://github.com/zadam/trilium/issues/376
-        defaultShortcuts: isMac ? ["Meta+Left"] : ["Alt+Left"],
+        defaultShortcuts: isMac ? ["CommandOrControl+Left"] : ["Alt+Left"],
         scope: "window"
     },
     {
         actionName: "forwardInNoteHistory",
         // Mac has a different history navigation shortcuts - https://github.com/zadam/trilium/issues/376
-        defaultShortcuts: isMac ? ["Meta+Right"] : ["Alt+Right"],
+        defaultShortcuts: isMac ? ["CommandOrControl+Right"] : ["Alt+Right"],
         scope: "window"
     },
     {
@@ -215,13 +215,13 @@ const DEFAULT_KEYBOARD_ACTIONS = [
     },
     {
         actionName: "activateNextTab",
-        defaultShortcuts: isElectron ? ["CommandOrControl+Tab"] : [],
+        defaultShortcuts: isElectron ? ["CommandOrControl+Tab", "CommandOrControl+PageDown"] : [],
         description: "Activates tab on the right",
         scope: "window"
     },
     {
         actionName: "activatePreviousTab",
-        defaultShortcuts: isElectron ? ["CommandOrControl+Shift+Tab"] : [],
+        defaultShortcuts: isElectron ? ["CommandOrControl+Shift+Tab", "CommandOrControl+PageUp"] : [],
         description: "Activates tab on the left",
         scope: "window"
     },
@@ -249,7 +249,7 @@ const DEFAULT_KEYBOARD_ACTIONS = [
         scope: "window"
     },
     {
-        actionName: "showNoteRevisions",
+        actionName: "showRevisions",
         defaultShortcuts: [],
         description: "Shows Note Revisions dialog",
         scope: "window"
@@ -500,6 +500,12 @@ const DEFAULT_KEYBOARD_ACTIONS = [
         defaultShortcuts: ["CommandOrControl+Alt+C"],
         description: "Copy selected text without formatting",
         scope: "text-detail"
+    },
+    {
+        actionName: "forceSaveRevision",
+        defaultShortcuts: [],
+        description: "Force creating / saving new note revision of the active note",
+        scope: "window"
     }
 ];
 

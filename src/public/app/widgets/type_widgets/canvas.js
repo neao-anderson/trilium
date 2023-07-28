@@ -1,7 +1,6 @@
 import libraryLoader from "../../services/library_loader.js";
 import TypeWidget from "./type_widget.js";
 import utils from '../../services/utils.js';
-import froca from "../../services/froca.js";
 import debounce from "../../services/debounce.js";
 
 const {sleep} = utils;
@@ -12,6 +11,14 @@ const TPL = `
         .excalidraw .App-menu_top .buttonList {
             display: flex;
         }
+        
+        /* Conflict between excalidraw and bootstrap classes keeps the menu hidden */
+        /* https://github.com/zadam/trilium/issues/3780 */
+        /* https://github.com/excalidraw/excalidraw/issues/6567 */
+        .excalidraw .dropdown-menu {
+            display: block;
+        }
+
 
         .excalidraw-wrapper {
             height: 100%;
@@ -40,7 +47,7 @@ const TPL = `
  * @author thfrei 2022-05-11
  *
  * Background:
- * excalidraw gives great support for hand drawn notes. It also allows to include images and support
+ * excalidraw gives great support for hand-drawn notes. It also allows including images and support
  * for sketching. Excalidraw has a vibrant and active community.
  *
  * Functionality:
@@ -51,17 +58,17 @@ const TPL = `
  * Paths not taken.
  *  - excalidraw-to-svg (node.js) could be used to avoid storing the svg in the backend.
  *    We could render the SVG on the fly. However, as of now, it does not render any hand drawn
- *    (freedraw) paths. There is an issue with Path2D object not present in node-canvas library
- *    used by jsdom. (See Trilium PR for samples and other issues in respective library.
+ *    (freedraw) paths. There is an issue with Path2D object not present in the node-canvas library
+ *    used by jsdom. (See Trilium PR for samples and other issues in the respective library.
  *    Link will be added later). Related links:
  *     - https://github.com/Automattic/node-canvas/pull/2013
  *     - https://github.com/google/canvas-5-polyfill
  *     - https://github.com/Automattic/node-canvas/issues/1116
  *     - https://www.npmjs.com/package/path2d-polyfill
  *  - excalidraw-to-svg (node.js) takes quite some time to load an image (1-2s)
- *  - excalidraw-utils (browser) does render freedraw, however NOT freedraw with background. It is not
+ *  - excalidraw-utils (browser) does render freedraw, however NOT freedraw with a background. It is not
  *    used, since it is a big dependency, and has the same functionality as react + excalidraw.
- *  - infinite-drawing-canvas with fabric.js. This library lacked a lot of feature, excalidraw already
+ *  - infinite-drawing-canvas with fabric.js. This library lacked a lot of features, excalidraw already
  *    has.
  *
  * Known issues:
@@ -70,7 +77,7 @@ const TPL = `
  *
  * Discussion of storing svg in the note:
  *  - Pro: we will combat bit-rot. Showing the SVG will be very fast and easy, since it is already there.
- *  - Con: The note will get bigger (~40-50%?), we will generate more bandwith. However, using trilium
+ *  - Con: The note will get bigger (~40-50%?), we will generate more bandwidth. However, using trilium
  *         desktop instance mitigates that issue.
  *
  * Roadmap:
@@ -84,7 +91,7 @@ export default class ExcalidrawTypeWidget extends TypeWidget {
         super();
 
         // constants
-        this.SCENE_VERSION_INITIAL = -1; // -1 indicates, that it is fresh. excalidraw scene version is always >0
+        this.SCENE_VERSION_INITIAL = -1; // -1 indicates that it is fresh. excalidraw scene version is always >0
         this.SCENE_VERSION_ERROR = -2; // -2 indicates error
 
         // config
@@ -144,19 +151,19 @@ export default class ExcalidrawTypeWidget extends TypeWidget {
     /**
      * called to populate the widget container with the note content
      *
-     * @param {note} note
+     * @param {FNote} note
      */
     async doRefresh(note) {
-        // see if note changed, since we do not get a new class for a new note
+        // see if the note changed, since we do not get a new class for a new note
         const noteChanged = this.currentNoteId !== note.noteId;
         if (noteChanged) {
-            // reset scene to omit unnecessary onchange handler
+            // reset the scene to omit unnecessary onchange handler
             this.currentSceneVersion = this.SCENE_VERSION_INITIAL;
         }
         this.currentNoteId = note.noteId;
 
         // get note from backend and put into canvas
-        const noteComplement = await froca.getNoteComplement(note.noteId);
+        const blob = await note.getBlob();
 
         // before we load content into excalidraw, make sure excalidraw has loaded
         while (!this.excalidrawRef || !this.excalidrawRef.current) {
@@ -170,7 +177,7 @@ export default class ExcalidrawTypeWidget extends TypeWidget {
          * note into this fresh note. Probably due to that this note-instance does not get
          * newly instantiated?
          */
-        if (this.excalidrawRef.current && noteComplement.content?.trim() === "") {
+        if (this.excalidrawRef.current && blob.content?.trim() === "") {
             const sceneData = {
                 elements: [],
                 appState: {
@@ -181,16 +188,16 @@ export default class ExcalidrawTypeWidget extends TypeWidget {
 
             this.excalidrawRef.current.updateScene(sceneData);
         }
-        else if (this.excalidrawRef.current && noteComplement.content) {
+        else if (this.excalidrawRef.current && blob.content) {
             // load saved content into excalidraw canvas
             let content;
 
             try {
-                content = JSON.parse(noteComplement.content || "");
+                content = JSON.parse(blob.content || "");
             } catch(err) {
                 console.error("Error parsing content. Probably note.type changed",
                               "Starting with empty canvas"
-                              , note, noteComplement, err);
+                              , note, blob, err);
 
                 content = {
                     elements: [],
@@ -219,7 +226,7 @@ export default class ExcalidrawTypeWidget extends TypeWidget {
                 collaborators: []
             };
 
-            // files are expected in an array when loading. they are stored as an key-index object
+            // files are expected in an array when loading. they are stored as a key-index object
             // see example for loading here:
             // https://github.com/excalidraw/excalidraw/blob/c5a7723185f6ca05e0ceb0b0d45c4e3fbcb81b2a/src/packages/excalidraw/example/App.js#L68
             const fileArray = [];
@@ -246,19 +253,19 @@ export default class ExcalidrawTypeWidget extends TypeWidget {
      * gets data from widget container that will be sent via spacedUpdate.scheduleUpdate();
      * this is automatically called after this.saveData();
      */
-    async getContent() {
+    async getData() {
         const elements = this.excalidrawRef.current.getSceneElements();
         const appState = this.excalidrawRef.current.getAppState();
 
         /**
-         * A file is not deleted, even though removed from canvas. therefore we only keep
-         * files that are referenced by an element. Maybe this will change with new excalidraw version?
+         * A file is not deleted, even though removed from canvas. Therefore, we only keep
+         * files that are referenced by an element. Maybe this will change with a new excalidraw version?
          */
         const files = this.excalidrawRef.current.getFiles();
 
         /**
          * parallel svg export to combat bitrot and enable rendering image for note inclusion,
-         * preview and share.
+         *  preview, and share.
          */
         const svg = await window.ExcalidrawLib.exportToSvg({
             elements,
@@ -277,6 +284,8 @@ export default class ExcalidrawTypeWidget extends TypeWidget {
         })
 
         const content = {
+            type: "excalidraw",
+            version: 2,
             _meta: "This note has type `canvas`. It uses excalidraw and stores an exported svg alongside.",
             elements, // excalidraw
             appState, // excalidraw
@@ -284,7 +293,9 @@ export default class ExcalidrawTypeWidget extends TypeWidget {
             svg: svgString, // not needed for excalidraw, used for note_short, content, and image api
         };
 
-        return JSON.stringify(content);
+        return {
+            content: JSON.stringify(content)
+        };
     }
 
     /**
@@ -368,7 +379,7 @@ export default class ExcalidrawTypeWidget extends TypeWidget {
                 // do a custom redirect, such as passing to react-router
                 // ...
             } else {
-                // open in same tab
+                // open in the same tab
             }
           }, []);
 

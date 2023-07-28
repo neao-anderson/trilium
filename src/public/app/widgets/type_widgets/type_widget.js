@@ -1,5 +1,5 @@
 import NoteContextAwareWidget from "../note_context_aware_widget.js";
-import appContext from "../../services/app_context.js";
+import appContext from "../../components/app_context.js";
 
 export default class TypeWidget extends NoteContextAwareWidget {
     // for overriding
@@ -11,9 +11,7 @@ export default class TypeWidget extends NoteContextAwareWidget {
         return super.doRender();
     }
 
-    /**
-     * @param {NoteShort} note
-     */
+    /** @param {FNote} note */
     async doRefresh(note) {}
 
     async refresh() {
@@ -38,10 +36,8 @@ export default class TypeWidget extends NoteContextAwareWidget {
         return this.$widget.is(":visible") && this.noteContext?.ntxId === appContext.tabManager.activeNtxId;
     }
 
-    /**
-     * @returns {Promise|*} promise resolving content or directly the content
-     */ 
-    getContent() {}
+    /** @returns {Promise<Object>|*} promise resolving note data. Note data is an object with content. */
+    getData() {}
 
     focus() {}
 

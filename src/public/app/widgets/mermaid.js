@@ -1,6 +1,5 @@
 import libraryLoader from "../services/library_loader.js";
 import NoteContextAwareWidget from "./note_context_aware_widget.js";
-import froca from "../services/froca.js";
 
 const TPL = `<div class="mermaid-widget">
     <style>
@@ -35,7 +34,8 @@ export default class MermaidWidget extends NoteContextAwareWidget {
     isEnabled() {
         return super.isEnabled()
             && this.note?.type === 'mermaid'
-            && this.note.isContentAvailable();
+            && this.note.isContentAvailable()
+            && this.noteContext?.viewScope.viewMode === 'default';
     }
 
     doRender() {
@@ -72,37 +72,37 @@ export default class MermaidWidget extends NoteContextAwareWidget {
 
         const wheelZoomLoaded = libraryLoader.requireLibrary(libraryLoader.WHEEL_ZOOM);
 
+        this.$errorContainer.hide();
+
         try {
-            const renderedSvg = await this.renderSvg();
-            this.$display.html(renderedSvg);
+            const svg = await this.renderSvg();
+
+            this.$display.html(svg);
 
             await wheelZoomLoaded;
 
-            this.$display.attr("id", 'mermaid-render-' + idCounter);
+            this.$display.attr("id", `mermaid-render-${idCounter}`);
 
-            WZoom.create('#mermaid-render-' + idCounter, {
+            WZoom.create(`#mermaid-render-${idCounter}`, {
                 type: 'html',
                 maxScale: 10,
                 speed: 20,
                 zoomOnClick: false
             });
-
-            this.$errorContainer.hide();
         } catch (e) {
             this.$errorMessage.text(e.message);
             this.$errorContainer.show();
         }
     }
 
-    renderSvg() {
-        return new Promise(async res => {
-            idCounter++;
+    async renderSvg() {
+        idCounter++;
 
-            const noteComplement = await froca.getNoteComplement(this.noteId);
-            const content = noteComplement.content || "";
+        const blob = await this.note.getBlob();
+        const content = blob.content || "";
 
-            mermaid.mermaidAPI.render('mermaid-graph-' + idCounter, content, res);
-        });
+        const {svg} = await mermaid.mermaidAPI.render(`mermaid-graph-${idCounter}`, content);
+        return svg;
     }
 
     async entitiesReloadedEvent({loadResults}) {
@@ -116,14 +116,13 @@ export default class MermaidWidget extends NoteContextAwareWidget {
             return;
         }
 
-        const renderedSvg = await this.renderSvg();
-
-        this.download(this.note.title + ".svg", renderedSvg);
+        const svg = await this.renderSvg();
+        this.download(`${this.note.title}.svg`, svg);
     }
 
     download(filename, text) {
         const element = document.createElement('a');
-        element.setAttribute('href', 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(text));
+        element.setAttribute('href', `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`);
         element.setAttribute('download', filename);
 
         element.style.display = 'none';

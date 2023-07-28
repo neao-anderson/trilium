@@ -8,19 +8,6 @@ export default class FindInText {
         return this.parent.noteContext.getTextEditor();
     }
 
-    async getInitialSearchTerm() {
-        const textEditor = await this.getTextEditor();
-
-        const selection = textEditor.model.document.selection;
-        const range = selection.getFirstRange();
-
-        for (const item of range.getItems()) {
-            // Fill in the findbox with the current selection if
-            // any
-            return item.data;
-        }
-    }
-
     async performFind(searchTerm, matchCase, wholeWord) {
         // Do this even if the searchTerm is empty so the markers are cleared and
         // the counters updated
@@ -64,8 +51,7 @@ export default class FindInText {
         if (totalFound > 0) {
             currentFound = Math.max(0, currentFound);
             // XXX Do this accessing the private data?
-            // See
-            // https://github.com/ckeditor/ckeditor5/blob/b95e2faf817262ac0e1e21993d9c0bde3f1be594/packages/ckeditor5-find-and-replace/src/findnextcommand.js
+            // See https://github.com/ckeditor/ckeditor5/blob/b95e2faf817262ac0e1e21993d9c0bde3f1be594/packages/ckeditor5-find-and-replace/src/findnextcommand.js
             for (let i = 0 ; i < currentFound; ++i) {
                 textEditor.execute('findNext', searchTerm);
             }

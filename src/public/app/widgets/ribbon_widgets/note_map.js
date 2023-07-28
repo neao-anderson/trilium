@@ -16,7 +16,6 @@ const TPL = `
             position: absolute;
             right: 5px;
             bottom: 5px;
-            font-size: 180%;
             z-index: 1000;
         }
         
@@ -46,10 +45,6 @@ export default class NoteMapRibbonWidget extends NoteContextAwareWidget {
 
     get toggleCommand() {
         return "toggleRibbonTabNoteMap";
-    }
-
-    isEnabled() {
-        return this.note;
     }
 
     getTitle() {
@@ -92,8 +87,8 @@ export default class NoteMapRibbonWidget extends NoteContextAwareWidget {
             this.noteMapWidget.setDimensions();
         });
 
-        window.addEventListener('resize', () => {
-            if (!this.graph) { // no graph has been even rendered
+        const handleResize = () => {
+            if (!this.noteMapWidget.graph) { // no graph has been even rendered
                 return;
             }
 
@@ -103,7 +98,9 @@ export default class NoteMapRibbonWidget extends NoteContextAwareWidget {
             else if (this.openState === 'small') {
                 this.setSmallSize();
             }
-        }, false);
+        }
+
+        new ResizeObserver(handleResize).observe(this.$widget[0])
     }
 
     setSmallSize() {

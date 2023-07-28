@@ -3,8 +3,9 @@
 const sql = require('../../services/sql');
 const log = require('../../services/log');
 const attributeService = require('../../services/attributes');
-const Attribute = require('../../becca/entities/attribute');
+const BAttribute = require('../../becca/entities/battribute');
 const becca = require("../../becca/becca");
+const ValidationError = require("../../errors/validation_error");
 
 function getEffectiveNoteAttributes(req) {
     const note = becca.getNote(req.params.noteId);
@@ -18,10 +19,10 @@ function updateNoteAttribute(req) {
 
     let attribute;
     if (body.attributeId) {
-        attribute = becca.getAttribute(body.attributeId);
+        attribute = becca.getAttributeOrThrow(body.attributeId);
 
         if (attribute.noteId !== noteId) {
-            return [400, `Attribute ${body.attributeId} is not owned by ${noteId}`];
+            throw new ValidationError(`Attribute '${body.attributeId}' is not owned by ${noteId}`);
         }
 
         if (body.type !== attribute.type
@@ -43,11 +44,11 @@ function updateNoteAttribute(req) {
         }
     }
     else {
-        if (body.type === 'relation' && !body.value.trim()) {
+        if (body.type === 'relation' && !body.value?.trim()) {
             return {};
         }
 
-        attribute = new Attribute({
+        attribute = new BAttribute({
             noteId: noteId,
             name: body.name,
             type: body.type
@@ -83,7 +84,7 @@ function setNoteAttribute(req) {
         const params = {...body};
         params.noteId = noteId; // noteId must be set before calling constructor for proper initialization
 
-        new Attribute(params).save();
+        new BAttribute(params).save();
     }
 }
 
@@ -91,7 +92,7 @@ function addNoteAttribute(req) {
     const noteId = req.params.noteId;
     const body = req.body;
 
-    new Attribute({...body, noteId}).save();
+    new BAttribute({...body, noteId}).save();
 }
 
 function deleteNoteAttribute(req) {
@@ -102,7 +103,7 @@ function deleteNoteAttribute(req) {
 
     if (attribute) {
         if (attribute.noteId !== noteId) {
-            return [400, `Attribute ${attributeId} is not owned by ${noteId}`];
+            throw new ValidationError(`Attribute ${attributeId} is not owned by ${noteId}`);
         }
 
         attribute.markAsDeleted();
@@ -115,7 +116,7 @@ function updateNoteAttributes(req) {
 
     const note = becca.getNote(noteId);
 
-    let existingAttrs = note.getOwnedAttributes();
+    let existingAttrs = note.getOwnedAttributes().slice();
 
     let position = 0;
 
@@ -164,7 +165,7 @@ function updateNoteAttributes(req) {
             continue;
         }
 
-        // no existing attribute has been matched so we need to create a new one
+        // no existing attribute has been matched, so we need to create a new one
         // type, name and isInheritable are immutable so even if there is an attribute with matching type & name, we need to create a new one and delete the former one
 
         note.addAttribute(incAttr.type, incAttr.name, incAttr.value, incAttr.isInheritable, position);
@@ -200,7 +201,7 @@ function createRelation(req) {
     let attribute = becca.getAttribute(attributeId);
 
     if (!attribute) {
-        attribute = new Attribute({
+        attribute = new BAttribute({
             noteId: sourceNoteId,
             name: name,
             type: 'relation',

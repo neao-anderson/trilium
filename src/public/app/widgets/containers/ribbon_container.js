@@ -39,7 +39,7 @@ const TPL = `
     
     .ribbon-tab-title.active {
         color: var(--main-text-color);
-        border-bottom: 1px solid var(--main-text-color);
+        border-bottom: 3px solid var(--main-text-color);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -76,10 +76,6 @@ const TPL = `
         display: flex;
         border-bottom: 1px solid var(--main-border-color); 
         margin-right: 5px;
-    }
-    
-    .ribbon-button-container .icon-action {
-        padding: 5px;
     }
     
     .ribbon-button-container > * {
@@ -123,6 +119,11 @@ export default class RibbonContainer extends NoteContextAwareWidget {
         this.contentSized();
         this.ribbonWidgets = [];
         this.buttonWidgets = [];
+    }
+
+    isEnabled() {
+        return super.isEnabled()
+            && this.noteContext.viewScope.viewMode === 'default';
     }
 
     ribbon(widget) {
@@ -340,12 +341,12 @@ export default class RibbonContainer extends NoteContextAwareWidget {
     entitiesReloadedEvent({loadResults}) {
         if (loadResults.isNoteReloaded(this.noteId) && this.lastNoteType !== this.note.type) {
             // note type influences the list of available ribbon tabs the most
-            // check for type is so that we don't update on each title rename
+            // check for the type is so that we don't update on each title rename
             this.lastNoteType = this.note.type;
 
             this.refresh();
         }
-        else if (loadResults.getAttributes(this.componentId).find(attr => attributeService.isAffecting(attr, this.note))) {
+        else if (loadResults.getAttributeRows(this.componentId).find(attr => attributeService.isAffecting(attr, this.note))) {
             this.refreshWithNote(this.note, true);
         }
     }

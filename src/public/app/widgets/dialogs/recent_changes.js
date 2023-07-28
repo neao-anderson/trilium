@@ -1,20 +1,25 @@
 import linkService from '../../services/link.js';
 import utils from '../../services/utils.js';
 import server from '../../services/server.js';
-import treeService from "../../services/tree.js";
 import froca from "../../services/froca.js";
-import appContext from "../../services/app_context.js";
+import appContext from "../../components/app_context.js";
 import hoistedNoteService from "../../services/hoisted_note.js";
 import BasicWidget from "../basic_widget.js";
-import dialogService from "../dialog.js";
+import dialogService from "../../services/dialog.js";
+import toastService from "../../services/toast.js";
+import ws from "../../services/ws.js";
 
 const TPL = `
 <div class="recent-changes-dialog modal fade mx-auto" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Recent changes</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <h5 class="modal-title mr-auto">Recent changes</h5>
+                
+                <button class="erase-deleted-notes-now-button btn btn-sm" style="padding: 0 10px">
+                    Erase deleted notes now</button>
+                
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="margin-left: 0 !important;">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -29,20 +34,30 @@ export default class RecentChangesDialog extends BasicWidget {
     doRender() {
         this.$widget = $(TPL);
         this.$content = this.$widget.find(".recent-changes-content");
+        this.$eraseDeletedNotesNow = this.$widget.find(".erase-deleted-notes-now-button");
+        this.$eraseDeletedNotesNow.on("click", () => {
+            server.post('notes/erase-deleted-notes-now').then(() => {
+                this.refresh();
+
+                toastService.showMessage("Deleted notes have been erased.");
+            });
+        });
     }
 
     async showRecentChangesEvent({ancestorNoteId}) {
-        await this.refresh(ancestorNoteId);
+        this.ancestorNoteId = ancestorNoteId;
+
+        await this.refresh();
 
         utils.openDialog(this.$widget);
     }
 
-    async refresh(ancestorNoteId) {
-        if (!ancestorNoteId) {
-            ancestorNoteId = hoistedNoteService.getHoistedNoteId();
+    async refresh() {
+        if (!this.ancestorNoteId) {
+            this.ancestorNoteId = hoistedNoteService.getHoistedNoteId();
         }
 
-        const recentChangesRows = await server.get('recent-changes/' + ancestorNoteId);
+        const recentChangesRows = await server.get(`recent-changes/${this.ancestorNoteId}`);
 
         // preload all notes into cache
         await froca.getNotes(recentChangesRows.map(r => r.noteId), true);
@@ -79,7 +94,7 @@ export default class RecentChangesDialog extends BasicWidget {
 
                                     this.$widget.modal('hide');
 
-                                    await froca.reloadNotes([change.noteId]);
+                                    await ws.waitForMaxKnownEntityChangeId();
 
                                     appContext.tabManager.getActiveContext().setNote(change.noteId);
                                 }
@@ -92,10 +107,10 @@ export default class RecentChangesDialog extends BasicWidget {
                     }
                 } else {
                     const note = await froca.getNote(change.noteId);
-                    const notePath = treeService.getSomeNotePath(note);
+                    const notePath = note.getBestNotePathString();
 
                     if (notePath) {
-                        $noteLink = await linkService.createNoteLink(notePath, {
+                        $noteLink = await linkService.createLink(notePath, {
                             title: change.title,
                             showNotePath: true
                         });

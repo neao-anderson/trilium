@@ -10,6 +10,84 @@ const becca = require('../../../becca/becca');
 const beccaService = require('../../../becca/becca_service');
 const utils = require('../../utils');
 const log = require('../../log');
+const hoistedNoteService = require("../../hoisted_note");
+
+function searchFromNote(note) {
+    let searchResultNoteIds, highlightedTokens;
+
+    const searchScript = note.getRelationValue('searchScript');
+    const searchString = note.getLabelValue('searchString');
+    let error = null;
+
+    if (searchScript) {
+        searchResultNoteIds = searchFromRelation(note, 'searchScript');
+        highlightedTokens = [];
+    } else {
+        const searchContext = new SearchContext({
+            fastSearch: note.hasLabel('fastSearch'),
+            ancestorNoteId: note.getRelationValue('ancestor'),
+            ancestorDepth: note.getLabelValue('ancestorDepth'),
+            includeArchivedNotes: note.hasLabel('includeArchivedNotes'),
+            orderBy: note.getLabelValue('orderBy'),
+            orderDirection: note.getLabelValue('orderDirection'),
+            limit: note.getLabelValue('limit'),
+            debug: note.hasLabel('debug'),
+            fuzzyAttributeSearch: false
+        });
+
+        searchResultNoteIds = findResultsWithQuery(searchString, searchContext)
+            .map(sr => sr.noteId);
+
+        highlightedTokens = searchContext.highlightedTokens;
+        error = searchContext.getError();
+    }
+
+    // we won't return search note's own noteId
+    // also don't allow root since that would force infinite cycle
+    return {
+        searchResultNoteIds: searchResultNoteIds.filter(resultNoteId => !['root', note.noteId].includes(resultNoteId)),
+        highlightedTokens,
+        error: error
+    };
+}
+
+function searchFromRelation(note, relationName) {
+    const scriptNote = note.getRelationTarget(relationName);
+
+    if (!scriptNote) {
+        log.info(`Search note's relation ${relationName} has not been found.`);
+
+        return [];
+    }
+
+    if (!scriptNote.isJavaScript() || scriptNote.getScriptEnv() !== 'backend') {
+        log.info(`Note ${scriptNote.noteId} is not executable.`);
+
+        return [];
+    }
+
+    if (!note.isContentAvailable()) {
+        log.info(`Note ${scriptNote.noteId} is not available outside of protected session.`);
+
+        return [];
+    }
+
+    const scriptService = require("../../script"); // to avoid circular dependency
+    const result = scriptService.executeNote(scriptNote, {originEntity: note});
+
+    if (!Array.isArray(result)) {
+        log.info(`Result from ${scriptNote.noteId} is not an array.`);
+
+        return [];
+    }
+
+    if (result.length === 0) {
+        return [];
+    }
+
+    // we expect either array of noteIds (strings) or notes, in that case we extract noteIds ourselves
+    return typeof result[0] === 'string' ? result : result.map(item => item.noteId);
+}
 
 function loadNeededInfoFromDatabase() {
     const sql = require('../../sql');
@@ -25,7 +103,7 @@ function loadNeededInfoFromDatabase() {
             noteId, 
             LENGTH(content) AS length 
         FROM notes
-             JOIN note_contents USING(noteId) 
+             JOIN blobs USING(blobId) 
         WHERE notes.isDeleted = 0`);
 
     for (const {noteId, length} of noteContentLengths) {
@@ -38,16 +116,16 @@ function loadNeededInfoFromDatabase() {
         becca.notes[noteId].noteSize = length;
     }
 
-    const noteRevisionContentLengths = sql.getRows(`
+    const revisionContentLengths = sql.getRows(`
         SELECT 
             noteId, 
             LENGTH(content) AS length 
         FROM notes
-             JOIN note_revisions USING(noteId) 
-             JOIN note_revision_contents USING(noteRevisionId) 
+             JOIN revisions USING(noteId) 
+             JOIN blobs USING(blobId) 
         WHERE notes.isDeleted = 0`);
 
-    for (const {noteId, length} of noteRevisionContentLengths) {
+    for (const {noteId, length} of revisionContentLengths) {
         if (!(noteId in becca.notes)) {
             log.error(`Note ${noteId} not found in becca.`);
             continue;
@@ -61,7 +139,7 @@ function loadNeededInfoFromDatabase() {
 /**
  * @param {Expression} expression
  * @param {SearchContext} searchContext
- * @return {SearchResult[]}
+ * @returns {SearchResult[]}
  */
 function findResultsWithExpression(expression, searchContext) {
     if (searchContext.dbLoadNeeded) {
@@ -74,30 +152,21 @@ function findResultsWithExpression(expression, searchContext) {
         noteIdToNotePath: {}
     };
 
-    const noteSet = expression.execute(allNoteSet, executionContext);
+    const noteSet = expression.execute(allNoteSet, executionContext, searchContext);
 
     const searchResults = noteSet.notes
         .map(note => {
-            if (note.isDeleted) {
-                return null;
-            }
-
-            const notePathArray = executionContext.noteIdToNotePath[note.noteId] || beccaService.getSomePath(note);
+            const notePathArray = executionContext.noteIdToNotePath[note.noteId] || note.getBestNotePath();
 
             if (!notePathArray) {
                 throw new Error(`Can't find note path for note ${JSON.stringify(note.getPojo())}`);
             }
 
-            if (notePathArray.includes("hidden")) {
-                return null;
-            }
-
             return new SearchResult(notePathArray);
-        })
-        .filter(note => !!note);
+        });
 
     for (const res of searchResults) {
-        res.computeScore(searchContext.highlightedTokens);
+        res.computeScore(searchContext.fulltextQuery, searchContext.highlightedTokens);
     }
 
     if (!noteSet.sorted) {
@@ -122,8 +191,18 @@ function findResultsWithExpression(expression, searchContext) {
 }
 
 function parseQueryToExpression(query, searchContext) {
-    const {fulltextTokens, expressionTokens} = lex(query);
-    const structuredExpressionTokens = handleParens(expressionTokens);
+    const {fulltextQuery, fulltextTokens, expressionTokens} = lex(query);
+    searchContext.fulltextQuery = fulltextQuery;
+
+    let structuredExpressionTokens;
+
+    try {
+        structuredExpressionTokens = handleParens(expressionTokens);
+    }
+    catch (e) {
+        structuredExpressionTokens = [];
+        searchContext.addError(e.message);
+    }
 
     const expression = parse({
         fulltextTokens,
@@ -139,7 +218,7 @@ function parseQueryToExpression(query, searchContext) {
             expression
         };
 
-        log.info("Search debug: " + JSON.stringify(searchContext.debugInfo, null, 4));
+        log.info(`Search debug: ${JSON.stringify(searchContext.debugInfo, null, 4)}`);
     }
 
     return expression;
@@ -147,7 +226,8 @@ function parseQueryToExpression(query, searchContext) {
 
 /**
  * @param {string} query
- * @return {Note[]}
+ * @param {object} params - see SearchContext
+ * @returns {BNote[]}
  */
 function searchNotes(query, params = {}) {
     const searchResults = findResultsWithQuery(query, new SearchContext(params));
@@ -158,7 +238,7 @@ function searchNotes(query, params = {}) {
 /**
  * @param {string} query
  * @param {SearchContext} searchContext
- * @return {SearchResult[]}
+ * @returns {SearchResult[]}
  */
 function findResultsWithQuery(query, searchContext) {
     query = query || "";
@@ -176,7 +256,7 @@ function findResultsWithQuery(query, searchContext) {
 /**
  * @param {string} query
  * @param {SearchContext} searchContext
- * @return {Note|null}
+ * @returns {BNote|null}
  */
 function findFirstNoteWithQuery(query, searchContext) {
     const searchResults = findResultsWithQuery(query, searchContext);
@@ -188,7 +268,11 @@ function searchNotesForAutocomplete(query) {
     const searchContext = new SearchContext({
         fastSearch: true,
         includeArchivedNotes: false,
-        fuzzyAttributeSearch: true
+        includeHiddenNotes: true,
+        fuzzyAttributeSearch: true,
+        ancestorNoteId: hoistedNoteService.isHoistedInHiddenSubtree()
+            ? 'root'
+            : hoistedNoteService.getHoistedNoteId()
     });
 
     const allSearchResults = findResultsWithQuery(query, searchContext);
@@ -203,7 +287,7 @@ function searchNotesForAutocomplete(query) {
             noteTitle: beccaService.getNoteTitle(result.noteId),
             notePathTitle: result.notePathTitle,
             highlightedNotePathTitle: result.highlightedNotePathTitle
-        }
+        };
     });
 }
 
@@ -214,15 +298,17 @@ function highlightSearchResults(searchResults, highlightedTokens) {
     // which would make the resulting HTML string invalid.
     // { and } are used for marking <b> and </b> tag (to avoid matches on single 'b' character)
     // < and > are used for marking <small> and </small>
-    highlightedTokens = highlightedTokens.map(token => token.replace('/[<\{\}]/g', ''));
+    highlightedTokens = highlightedTokens
+        .map(token => token.replace('/[<\{\}]/g', ''))
+        .filter(token => !!token?.trim());
 
-    // sort by the longest so we first highlight longest matches
+    // sort by the longest, so we first highlight the longest matches
     highlightedTokens.sort((a, b) => a.length > b.length ? -1 : 1);
 
     for (const result of searchResults) {
         const note = becca.notes[result.noteId];
 
-        result.highlightedNotePathTitle = result.notePathTitle.replace('/[<\{\}]/g', '');
+        result.highlightedNotePathTitle = result.notePathTitle.replace(/[<{}]/g, '');
 
         if (highlightedTokens.find(token => note.type.includes(token))) {
             result.highlightedNotePathTitle += ` "type: ${note.type}'`;
@@ -246,6 +332,11 @@ function highlightSearchResults(searchResults, highlightedTokens) {
     }
 
     for (const token of highlightedTokens) {
+        if (!token) {
+            // Avoid empty tokens, which might cause an infinite loop.
+            continue;
+        }
+
         for (const result of searchResults) {
             // Reset token
             const tokenRegex = new RegExp(utils.escapeRegExp(token), "gi");
@@ -272,15 +363,15 @@ function highlightSearchResults(searchResults, highlightedTokens) {
 
 function formatAttribute(attr) {
     if (attr.type === 'relation') {
-        return '~' + utils.escapeHtml(attr.name) + "=…";
+        return `~${utils.escapeHtml(attr.name)}=…`;
     }
     else if (attr.type === 'label') {
-        let label = '#' + utils.escapeHtml(attr.name);
+        let label = `#${utils.escapeHtml(attr.name)}`;
 
         if (attr.value) {
-            const val = /[^\w_-]/.test(attr.value) ? '"' + attr.value + '"' : attr.value;
+            const val = /[^\w-]/.test(attr.value) ? `"${attr.value}"` : attr.value;
 
-            label += '=' + utils.escapeHtml(val);
+            label += `=${utils.escapeHtml(val)}`;
         }
 
         return label;
@@ -288,6 +379,7 @@ function formatAttribute(attr) {
 }
 
 module.exports = {
+    searchFromNote,
     searchNotesForAutocomplete,
     findResultsWithQuery,
     findFirstNoteWithQuery,

@@ -1,5 +1,5 @@
 const log = require("./log");
-const noteRevisionService = require("./note_revisions");
+const revisionService = require("./revisions");
 const becca = require("../becca/becca");
 const cloningService = require("./cloning");
 const branchService = require("./branches");
@@ -13,12 +13,12 @@ const ACTION_HANDLERS = {
         note.addRelation(action.relationName, action.targetNoteId);
     },
     deleteNote: (action, note) => {
-        const deleteId = 'searchbulkaction-' + utils.randomString(10);
+        const deleteId = `searchbulkaction-${utils.randomString(10)}`;
 
         note.deleteNote(deleteId);
     },
-    deleteNoteRevisions: (action, note) => {
-        noteRevisionService.eraseNoteRevisions(note.getNoteRevisions().map(rev => rev.noteRevisionId));
+    deleteRevisions: (action, note) => {
+        revisionService.eraseRevisions(note.getRevisions().map(rev => rev.revisionId));
     },
     deleteLabel: (action, note) => {
         for (const label of note.getOwnedLabels(action.labelName)) {
@@ -34,7 +34,7 @@ const ACTION_HANDLERS = {
         // "officially" injected value:
         // - note
 
-        const newTitle = eval('`' + action.newTitle + '`');
+        const newTitle = eval(`\`${action.newTitle}\``);
 
         if (note.title !== newTitle) {
             note.title = newTitle;
@@ -83,7 +83,7 @@ const ACTION_HANDLERS = {
         let res;
 
         if (note.getParentBranches().length > 1) {
-            res = cloningService.cloneNoteToNote(note.noteId, action.targetParentNoteId);
+            res = cloningService.cloneNoteToParentNote(note.noteId, action.targetParentNoteId);
         }
         else {
             res = branchService.moveBranchToNote(note.getParentBranches()[0], action.targetParentNoteId);
@@ -134,7 +134,7 @@ function executeActions(note, searchResultNoteIds) {
     for (const resultNoteId of searchResultNoteIds) {
         const resultNote = becca.getNote(resultNoteId);
 
-        if (!resultNote || resultNote.isDeleted) {
+        if (!resultNote) {
             continue;
         }
 

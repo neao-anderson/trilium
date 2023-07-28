@@ -5,7 +5,7 @@ const sql = require('./sql');
 const utils = require('./utils');
 const optionService = require('./options');
 const port = require('./port');
-const Option = require('../becca/entities/option');
+const BOption = require('../becca/entities/boption');
 const TaskContext = require('./task_context');
 const migrationService = require('./migration');
 const cls = require('./cls');
@@ -33,7 +33,7 @@ function isDbInitialized() {
 async function initDbConnection() {
     if (!isDbInitialized()) {
         log.info(`DB not initialized, please visit setup page` +
-            (utils.isElectron() ? '' : ` - http://[your-server-host]:${await port} to see instructions on how to initialize Trilium.`));
+            (utils.isElectron() ? '' : ` - http://[your-server-host]:${port} to see instructions on how to initialize Trilium.`));
 
         return;
     }
@@ -50,8 +50,8 @@ async function createInitialDatabase() {
         throw new Error("DB is already initialized");
     }
 
-    const schema = fs.readFileSync(resourceDir.DB_INIT_DIR + '/schema.sql', 'UTF-8');
-    const demoFile = fs.readFileSync(resourceDir.DB_INIT_DIR + '/demo.zip');
+    const schema = fs.readFileSync(`${resourceDir.DB_INIT_DIR}/schema.sql`, 'UTF-8');
+    const demoFile = fs.readFileSync(`${resourceDir.DB_INIT_DIR}/demo.zip`);
 
     let rootNote;
 
@@ -62,12 +62,12 @@ async function createInitialDatabase() {
 
         require("../becca/becca_loader").load();
 
-        const Note = require("../becca/entities/note");
-        const Branch = require("../becca/entities/branch");
+        const BNote = require("../becca/entities/bnote");
+        const BBranch = require("../becca/entities/bbranch");
 
         log.info("Creating root note ...");
 
-        rootNote = new Note({
+        rootNote = new BNote({
             noteId: 'root',
             title: 'root',
             type: 'text',
@@ -76,8 +76,7 @@ async function createInitialDatabase() {
 
         rootNote.setContent('');
 
-        new Branch({
-            branchId: 'root',
+        new BBranch({
             noteId: 'root',
             parentNoteId: 'none',
             isExpanded: true,
@@ -89,7 +88,7 @@ async function createInitialDatabase() {
         optionsInitService.initDocumentOptions();
         optionsInitService.initNotSyncedOptions(true, {});
         optionsInitService.initStartupOptions();
-        require("./password").resetPassword();
+        require("./encryption/password").resetPassword();
     });
 
     log.info("Importing demo content ...");
@@ -100,14 +99,14 @@ async function createInitialDatabase() {
     await zipImportService.importZip(dummyTaskContext, demoFile, rootNote);
 
     sql.transactional(() => {
-        // this needs to happen after ZIP import
-        // previous solution was to move option initialization here but then the important parts of initialization
+        // this needs to happen after ZIP import,
+        // the previous solution was to move option initialization here, but then the important parts of initialization
         // are not all in one transaction (because ZIP import is async and thus not transactional)
 
         const startNoteId = sql.getValue("SELECT noteId FROM branches WHERE parentNoteId = 'root' AND isDeleted = 0 ORDER BY notePosition");
 
         const optionService = require("./options");
-        optionService.setOption('openTabs', JSON.stringify([
+        optionService.setOption('openNoteContexts', JSON.stringify([
             {
                 notePath: startNoteId,
                 active: true
@@ -127,7 +126,7 @@ function createDatabaseForSync(options, syncServerHost = '', syncProxy = '') {
         throw new Error("DB is already initialized");
     }
 
-    const schema = fs.readFileSync(resourceDir.DB_INIT_DIR + '/schema.sql', 'UTF-8');
+    const schema = fs.readFileSync(`${resourceDir.DB_INIT_DIR}/schema.sql`, 'UTF-8');
 
     sql.transactional(() => {
         sql.executeScript(schema);
@@ -136,7 +135,7 @@ function createDatabaseForSync(options, syncServerHost = '', syncProxy = '') {
 
         // document options required for sync to kick off
         for (const opt of options) {
-            new Option(opt).save();
+            new BOption(opt).save();
         }
     });
 
@@ -172,7 +171,7 @@ dbReady.then(() => {
     // kickoff first backup soon after start up
     setTimeout(() => require('./backup').regularBackup(), 5 * 60 * 1000);
 
-    // optimize is usually inexpensive no-op so running it semi-frequently is not a big deal
+    // optimize is usually inexpensive no-op, so running it semi-frequently is not a big deal
     setTimeout(() => optimize(), 60 * 60 * 1000);
 
     setInterval(() => optimize(), 10 * 60 * 60 * 1000);

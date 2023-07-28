@@ -4,7 +4,7 @@ import froca from "../../services/froca.js";
 import toastService from "../../services/toast.js";
 import utils from "../../services/utils.js";
 import BasicWidget from "../basic_widget.js";
-import appContext from "../../services/app_context.js";
+import appContext from "../../components/app_context.js";
 
 let branchId;
 
@@ -59,7 +59,7 @@ export default class BranchPrefixDialog extends BasicWidget {
     }
 
     async refresh(notePath) {
-        const {noteId, parentNoteId} = treeService.getNoteIdAndParentIdFromNotePath(notePath);
+        const {noteId, parentNoteId} = treeService.getNoteIdAndParentIdFromUrl(notePath);
 
         if (!noteId || !parentNoteId) {
             return;
@@ -82,7 +82,7 @@ export default class BranchPrefixDialog extends BasicWidget {
 
         const noteTitle = await treeService.getNoteTitle(noteId);
 
-        this.$noteTitle.text(" - " + noteTitle);
+        this.$noteTitle.text(` - ${noteTitle}`);
     }
 
     async editBranchPrefixEvent() {

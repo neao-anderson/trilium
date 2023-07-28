@@ -11,7 +11,7 @@ import FindInHtml from "./find_in_html.js";
 const findWidgetDelayMillis = 200;
 const waitForEnter = (findWidgetDelayMillis < 0);
 
-// tabIndex=-1 on the checkbox labels is necessary so when clicking on the label
+// tabIndex=-1 on the checkbox labels is necessary, so when clicking on the label,
 // the focusout handler is called with relatedTarget equal to the label instead
 // of undefined. It's -1 instead of > 0, so they don't tabstop
 const TPL = `
@@ -142,26 +142,38 @@ export default class FindWidget extends NoteContextAwareWidget {
             return;
         }
 
-        if (!['text', 'code', 'render'].includes(this.note.type) || !this.$findBox.is(":hidden")) {
+        if (!['text', 'code', 'render'].includes(this.note.type)) {
             return;
         }
 
         this.handler = await this.getHandler();
 
+        const selectedText = window.getSelection().toString() || "";
+
         this.$findBox.show();
         this.$input.focus();
-        this.$totalFound.text(0);
-        this.$currentFound.text(0);
 
-        const searchTerm = await this.handler.getInitialSearchTerm();
+        const isAlreadyVisible = this.$findBox.is(":visible");
 
-        this.$input.val(searchTerm || "");
+        if (isAlreadyVisible) {
+            if (selectedText) {
+                this.$input.val(selectedText);
+            }
 
-        // Directly perform the search if there's some text to
-        // find, without delaying or waiting for enter
-        if (searchTerm !== "") {
+            if (this.$input.val()) {
+                await this.performFind();
+            }
+
             this.$input.select();
-            await this.performFind();
+        } else {
+            this.$totalFound.text(0);
+            this.$currentFound.text(0);
+            this.$input.val(selectedText);
+
+            if (selectedText) {
+                this.$input.select();
+                await this.performFind();
+            }
         }
     }
 
@@ -184,7 +196,7 @@ export default class FindWidget extends NoteContextAwareWidget {
     startSearch() {
         // XXX This should clear the previous search immediately in all cases
         //     (the search is stale when waitforenter but also while the
-        //     delay is running for non waitforenter case)
+        //     delay is running for the non waitforenter case)
         if (!waitForEnter) {
             // Clear the previous timeout if any, it's ok if timeoutId is
             // null or undefined

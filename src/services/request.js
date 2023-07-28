@@ -6,12 +6,12 @@ const url = require('url');
 const syncOptions = require('./sync_options');
 
 // this service provides abstraction over node's HTTP/HTTPS and electron net.client APIs
-// this allows to support system proxy
+// this allows supporting system proxy
 
 function exec(opts) {
     const client = getClient(opts);
 
-    // hack for cases where electron.net does not work but we don't want to set proxy
+    // hack for cases where electron.net does not work, but we don't want to set proxy
     if (opts.proxy === 'noproxy') {
         opts.proxy = null;
     }
@@ -38,7 +38,7 @@ function exec(opts) {
             };
 
             if (opts.auth) {
-                headers['trilium-cred'] = Buffer.from("dummy:" + opts.auth.password).toString('base64');
+                headers['trilium-cred'] = Buffer.from(`dummy:${opts.auth.password}`).toString('base64');
             }
 
             const request = client.request({
@@ -59,7 +59,7 @@ function exec(opts) {
 
             request.on('response', response => {
                 if (![200, 201, 204].includes(response.statusCode)) {
-                    reject(generateError(opts, response.statusCode + ' ' + response.statusMessage));
+                    reject(generateError(opts, `${response.statusCode} ${response.statusMessage}`));
                 }
 
                 if (opts.cookieJar && response.headers['set-cookie']) {
@@ -77,7 +77,7 @@ function exec(opts) {
                         resolve(jsonObj);
                     }
                     catch (e) {
-                        log.error("Failed to deserialize sync response: " + responseStr);
+                        log.error(`Failed to deserialize sync response: ${responseStr}`);
 
                         reject(generateError(opts, e.message));
                     }
@@ -123,7 +123,7 @@ function getImage(imageUrl) {
                 host: parsedTargetUrl.hostname,
                 port: parsedTargetUrl.port,
                 path: parsedTargetUrl.path,
-                timeout: opts.timeout, // works only for node client
+                timeout: opts.timeout, // works only for the node client
                 headers: {},
                 agent: proxyAgent
             });
@@ -134,7 +134,7 @@ function getImage(imageUrl) {
 
             request.on('response', response => {
                 if (![200, 201, 204].includes(response.statusCode)) {
-                    reject(generateError(opts, response.statusCode + ' ' + response.statusMessage));
+                    reject(generateError(opts, `${response.statusCode} ${response.statusMessage}`));
                 }
 
                 const chunks = []
@@ -160,7 +160,7 @@ function getProxyAgent(opts) {
 
     if (protocol === 'http:' || protocol === 'https:') {
         const protoNoColon = protocol.substr(0, protocol.length - 1);
-        const AgentClass = require(protoNoColon + '-proxy-agent');
+        const AgentClass = require(`${protoNoColon}-proxy-agent`);
 
         return new AgentClass(opts.proxy);
     }
@@ -170,8 +170,8 @@ function getProxyAgent(opts) {
 }
 
 function getClient(opts) {
-    // it's not clear how to explicitly configure proxy (as opposed to system proxy)
-    // so in that case we always use node's modules
+    // it's not clear how to explicitly configure proxy (as opposed to system proxy),
+    // so in that case, we always use node's modules
     if (utils.isElectron() && !opts.proxy) {
         return require('electron').net;
     }
@@ -182,7 +182,7 @@ function getClient(opts) {
             return require(protocol.substr(0, protocol.length - 1));
         }
         else {
-            throw new Error(`Unrecognized protocol "${protocol}"`);
+            throw new Error(`Unrecognized protocol '${protocol}'`);
         }
     }
 }

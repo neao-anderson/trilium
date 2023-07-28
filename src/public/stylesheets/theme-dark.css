@@ -1,13 +1,13 @@
 :root {
     --theme-style: dark;
 
-    --main-font-family: MontserratLight;
+    --main-font-family: Montserrat;
     --main-font-size: normal;
 
-    --tree-font-family: MontserratLight;
+    --tree-font-family: Montserrat;
     --tree-font-size: normal;
 
-    --detail-font-family: MontserratLight;
+    --detail-font-family: Montserrat;
     --detail-font-size: normal;
 
     --monospace-font-family: JetBrainsLight;
@@ -16,6 +16,7 @@
     --main-background-color: #333;
     --main-text-color: #ccc;
     --main-border-color: #aaa;
+    --dropdown-border-color: #555;
 
     --accented-background-color: #555;
     --more-accented-background-color: #777;
@@ -64,7 +65,8 @@
     --inactive-tab-hover-background-color: #525252;
     --inactive-tab-text-color: #bbb;
 
-    --scrollbar-border-color: #888;
+    --scrollbar-border-color: #666;
+    --scrollbar-background-color: #333;
     --tooltip-background-color: #333;
     --link-color: lightskyblue;
 
@@ -72,7 +74,7 @@
 }
 
 body .global-menu-button {
-    background-image: url("../images/icon-grey.png");
+    background-image: url("../images/icon-grey.svg");
 }
 
 body ::-webkit-calendar-picker-indicator {

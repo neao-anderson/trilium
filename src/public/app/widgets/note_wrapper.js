@@ -10,12 +10,6 @@ export default class NoteWrapperWidget extends FlexContainer {
             .collapsible();
     }
 
-    doRender() {
-        super.doRender();
-
-        this.$widget.addClass("note-split");
-    }
-
     setNoteContextEvent({noteContext}) {
         this.noteContext = noteContext;
 
@@ -35,7 +29,13 @@ export default class NoteWrapperWidget extends FlexContainer {
     }
 
     refresh() {
+        const isHiddenExt = this.isHiddenExt(); // preserve through class reset
+
         this.$widget.removeClass();
+
+        this.toggleExt(!isHiddenExt);
+
+        this.$widget.addClass("component note-split");
 
         const note = this.noteContext?.note;
         if (!note) {
@@ -43,8 +43,8 @@ export default class NoteWrapperWidget extends FlexContainer {
         }
 
         this.$widget.toggleClass("full-content-width",
-            ['image', 'mermaid', 'book', 'render', 'canvas', 'web-view'].includes(note.type)
-            || !!note?.hasLabel('fullContentWidth')
+            ['image', 'mermaid', 'book', 'render', 'canvas', 'webView'].includes(note.type)
+            || !!note?.isLabelTruthy('fullContentWidth')
         );
 
         this.$widget.addClass(note.getCssClass());
@@ -60,7 +60,7 @@ export default class NoteWrapperWidget extends FlexContainer {
 
         const noteId = this.noteContext?.noteId;
         if (loadResults.isNoteReloaded(noteId)
-            || loadResults.getAttributes().find(attr => attr.type === 'label' && attr.name === 'cssClass' && attributeService.isAffecting(attr, this.noteContext?.note))) {
+            || loadResults.getAttributeRows().find(attr => attr.type === 'label' && attr.name === 'cssClass' && attributeService.isAffecting(attr, this.noteContext?.note))) {
 
             this.refresh();
         }

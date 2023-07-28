@@ -15,11 +15,13 @@ function get(name) {
 }
 
 module.exports = {
-    getSyncServerHost: () => get('syncServerHost'),
+    // env variable is the easiest way to guarantee we won't overwrite prod data during development
+    // after copying prod document/data directory
+    getSyncServerHost: () => process.env.TRILIUM_SYNC_SERVER_HOST || get('syncServerHost'),
     isSyncSetup: () => {
         const syncServerHost = get('syncServerHost');
 
-        // special value "disabled" is here to support use case where document is configured with sync server
+        // special value "disabled" is here to support a use case where the document is configured with sync server,
         // and we need to override it with config from config.ini
         return !!syncServerHost && syncServerHost !== 'disabled';
     },

@@ -83,7 +83,7 @@ export default class BulkActionsDialog extends BasicWidget {
         this.$widget.on('click', '[data-action-add]', async event => {
             const actionName = $(event.target).attr('data-action-add');
 
-            await bulkActionService.addAction('bulkaction', actionName);
+            await bulkActionService.addAction('_bulkAction', actionName);
 
             await this.refresh();
         });
@@ -111,7 +111,7 @@ export default class BulkActionsDialog extends BasicWidget {
 
         this.$affectedNoteCount.text(affectedNoteCount);
 
-        const bulkActionNote = await froca.getNote('bulkaction');
+        const bulkActionNote = await froca.getNote('_bulkAction');
 
         const actions = bulkActionService.parseActions(bulkActionNote);
 
@@ -130,7 +130,7 @@ export default class BulkActionsDialog extends BasicWidget {
         for (const actionGroup of bulkActionService.ACTION_GROUPS) {
             const $actionGroupList = $("<td>");
             const $actionGroup = $("<tr>")
-                .append($("<td>").text(actionGroup.title + ": "))
+                .append($("<td>").text(`${actionGroup.title}: `))
                 .append($actionGroupList);
 
             for (const action of actionGroup.actions) {
@@ -147,13 +147,13 @@ export default class BulkActionsDialog extends BasicWidget {
 
     entitiesReloadedEvent({loadResults}) {
         // only refreshing deleted attrs, otherwise components update themselves
-        if (loadResults.getAttributes().find(attr =>
-            attr.type === 'label'
-            && attr.name === 'action'
-            && attr.noteId === 'bulkaction'
-            && attr.isDeleted)) {
+        if (loadResults.getAttributeRows().find(row =>
+            row.type === 'label'
+            && row.name === 'action'
+            && row.noteId === '_bulkAction'
+            && row.isDeleted)) {
 
-            // this may be triggered from e.g. sync without open widget, then no need to refresh the widget
+            // this may be triggered from e.g., sync without open widget, then no need to refresh the widget
             if (this.selectedOrActiveNoteIds && this.$widget.is(":visible")) {
                 this.refresh();
             }

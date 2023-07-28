@@ -1,7 +1,7 @@
 const becca = require("../becca/becca");
 const eu = require("./etapi_utils");
 const mappers = require("./mappers");
-const Branch = require("../becca/entities/branch");
+const BBranch = require("../becca/entities/bbranch");
 const entityChangesService = require("../services/entity_changes");
 const v = require("./validators");
 
@@ -13,7 +13,6 @@ function register(router) {
     });
 
     const ALLOWED_PROPERTIES_FOR_CREATE_BRANCH = {
-        'branchId': [v.mandatory, v.notNull, v.isValidEntityId],
         'noteId': [v.mandatory, v.notNull, v.isNoteId],
         'parentNoteId': [v.mandatory, v.notNull, v.isNoteId],
         'notePosition': [v.notNull, v.isInteger],
@@ -35,15 +34,14 @@ function register(router) {
             existing.save();
 
             return res.status(200).json(mappers.mapBranchToPojo(existing));
-        }
+        } else {
+            try {
+                const branch = new BBranch(params).save();
 
-        try {
-            const branch = new Branch(params).save();
-
-            res.status(201).json(mappers.mapBranchToPojo(branch));
-        }
-        catch (e) {
-            throw new eu.EtapiError(400, eu.GENERIC_CODE, e.message);
+                res.status(201).json(mappers.mapBranchToPojo(branch));
+            } catch (e) {
+                throw new eu.EtapiError(400, eu.GENERIC_CODE, e.message);
+            }
         }
     });
 
@@ -65,7 +63,7 @@ function register(router) {
     eu.route(router, 'delete' ,'/etapi/branches/:branchId', (req, res, next) => {
         const branch = becca.getBranch(req.params.branchId);
 
-        if (!branch || branch.isDeleted) {
+        if (!branch) {
             return res.sendStatus(204);
         }
 

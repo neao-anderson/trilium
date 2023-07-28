@@ -13,7 +13,7 @@ class LabelComparisonExp extends Expression {
         this.comparator = comparator;
     }
 
-    execute(inputNoteSet) {
+    execute(inputNoteSet, executionContext, searchContext) {
         const attrs = becca.findAttributes(this.attributeType, this.attributeName);
         const resultNoteSet = new NoteSet();
 
@@ -25,8 +25,8 @@ class LabelComparisonExp extends Expression {
                 if (attr.isInheritable) {
                     resultNoteSet.addAll(note.getSubtreeNotesIncludingTemplated());
                 }
-                else if (note.isTemplate()) {
-                    resultNoteSet.addAll(note.getTemplatedNotes());
+                else if (note.isInherited()) {
+                    resultNoteSet.addAll(note.getInheritingNotes());
                 }
                 else {
                     resultNoteSet.add(note);
